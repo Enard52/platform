@@ -269,6 +269,8 @@ public class VariablesController {
 
 	/**
 	 * Returns a page of the variable history of the given user within the given project.
+	 * Package-private (rather than private, like the other {@code do*} helpers) so that its input
+	 * validation and page clamping can be unit-tested without the authentication layer.
 	 *
 	 * @param userId the Dialogue Branch user whose history to return.
 	 * @param projectSlug the slug of the project the variables are scoped to.
@@ -280,7 +282,7 @@ public class VariablesController {
 	 * @throws NotFoundException if no project with the given slug exists.
 	 * @throws ParseException if a stored value cannot be parsed.
 	 */
-	private List<VariableHistoryEntry> doGetVariableHistory(DialogueBranchUserId userId,
+	List<VariableHistoryEntry> doGetVariableHistory(DialogueBranchUserId userId,
 			String projectSlug, String variableName, int page, int pageSize)
 			throws BadRequestException, NotFoundException, ParseException {
 		String name = variableName == null || variableName.isBlank() ? null : variableName.trim();
