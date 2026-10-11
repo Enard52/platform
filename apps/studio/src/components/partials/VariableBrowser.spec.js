@@ -52,6 +52,7 @@ vi.mock('@/composables/client.js', () => ({
 }));
 
 const { default: VariableBrowser } = await import('./VariableBrowser.vue');
+const { errorToast } = await import('@/composables/error-toast.js');
 
 const PAGE_SIZE = 50;
 
@@ -93,8 +94,21 @@ const shownNames = (wrapper) =>
     wrapper.findAll('[data-test="history-entry-name"]').map((n) => n.text());
 const lastHistoryCall = () => playback.getVariableHistory.mock.calls.at(-1)[0];
 
+/** A failed request as client-js rejects it (a DialogueBranchError carries status + message). */
+function apiError(message) {
+    return Object.assign(new Error(message), { status: 500, statusText: 'Internal Server Error' });
+}
+
+/** Clicks one of the mode switcher's buttons (Values / Used / History). */
+async function openMode(wrapper, label) {
+    await wrapper.findAll('button').find((b) => b.text() === label).trigger('click');
+    await flushPromises();
+}
+
 beforeEach(() => {
     vi.clearAllMocks();
+    errorToast.value = null;
+    document.body.innerHTML = '';
     playback.getVariables.mockResolvedValue([{ name: 'mood', value: 'fine' }]);
     playback.getVariableHistory.mockResolvedValue([]);
     authoring.listProjectVariables.mockResolvedValue([{ name: 'currentTime', read: true, written: false }]);
@@ -280,5 +294,210 @@ describe('VariableBrowser — History mode', () => {
         await flushPromises();
 
         expect(shownNames(wrapper)).toEqual(['$fresh']);
+    });
+
+    // -------------------- failure and concurrency -------------------- //
+
+    it('shows the error toast when loading the history fails', async () => {
+        playback.getVariableHistory.mockRejectedValue(apiError('History is unavailable.'));
+        const wrapper = mountBrowser();
+        await flushPromises();
+        await openHistory(wrapper);
+
+        expect(errorToast.value).toEqual({ message: 'History is unavailable.' });
+        expect(wrapper.findAll('[data-test="history-entry"]')).toHaveLength(0);
+    });
+
+    it('shows the error toast when "Load more" fails, keeping what was already loaded', async () => {
+        playback.getVariableHistory
+            .mockResolvedValueOnce(fullPage(100))
+            .mockRejectedValueOnce(apiError('Page 2 failed.'));
+        const wrapper = mountBrowser();
+        await flushPromises();
+        await openHistory(wrapper);
+
+        await wrapper.get('[data-test="history-load-more"]').trigger('click');
+        await flushPromises();
+
+        expect(errorToast.value).toEqual({ message: 'Page 2 failed.' });
+        expect(wrapper.findAll('[data-test="history-entry"]')).toHaveLength(PAGE_SIZE);
+        // Still offered, so the user can retry.
+        expect(wrapper.find('[data-test="history-load-more"]').exists()).toBe(true);
+    });
+
+    it('drops a "Load more" response that arrives after a refresh started over', async () => {
+        const loadMore = deferred();
+        playback.getVariableHistory
+            .mockResolvedValueOnce(fullPage(100))      // page 0
+            .mockReturnValueOnce(loadMore.promise)     // page 1, slow
+            .mockResolvedValueOnce([entry(101, 'fresh')]); // the refresh's page 0
+        const wrapper = mountBrowser();
+        await flushPromises();
+        await openHistory(wrapper);
+
+        await wrapper.get('[data-test="history-load-more"]').trigger('click');
+        wrapper.vm.loadVariables(); // e.g. a dialogue step, while "Load more" is still pending
+        await flushPromises();
+        loadMore.resolve([entry(50, 'stale-page-1')]);
+        await flushPromises();
+
+        expect(shownNames(wrapper)).toEqual(['$fresh']);
+    });
+
+    it('does not show an error from a stale first-page request that a newer one replaced', async () => {
+        const slow = deferred();
+        playback.getVariableHistory
+            .mockReturnValueOnce(slow.promise)
+            .mockResolvedValueOnce([entry(2, 'fresh')]);
+        const wrapper = mountBrowser();
+        await flushPromises();
+        await openHistory(wrapper);   // request 1 (will fail, late)
+        wrapper.vm.loadVariables();   // request 2 (succeeds)
+        await flushPromises();
+
+        slow.resolve(Promise.reject(apiError('Stale failure.')));
+        await flushPromises();
+
+        expect(errorToast.value).toBeNull();
+        expect(shownNames(wrapper)).toEqual(['$fresh']);
+    });
+
+    it('does not show an error from a "Load more" that a refresh replaced', async () => {
+        const loadMore = deferred();
+        playback.getVariableHistory
+            .mockResolvedValueOnce(fullPage(100))
+            .mockReturnValueOnce(loadMore.promise)
+            .mockResolvedValueOnce([entry(101, 'fresh')]);
+        const wrapper = mountBrowser();
+        await flushPromises();
+        await openHistory(wrapper);
+        await wrapper.get('[data-test="history-load-more"]').trigger('click');
+        wrapper.vm.loadVariables();
+        await flushPromises();
+
+        loadMore.resolve(Promise.reject(apiError('Stale failure.')));
+        await flushPromises();
+
+        expect(errorToast.value).toBeNull();
+        expect(shownNames(wrapper)).toEqual(['$fresh']);
+    });
+
+    it('ignores "Load more" while a page is already loading', async () => {
+        const loadMore = deferred();
+        playback.getVariableHistory
+            .mockResolvedValueOnce(fullPage(100))
+            .mockReturnValueOnce(loadMore.promise);
+        const wrapper = mountBrowser();
+        await flushPromises();
+        await openHistory(wrapper);
+
+        const button = wrapper.get('[data-test="history-load-more"]');
+        await button.trigger('click');
+        expect(button.attributes('disabled')).toBeDefined();
+        expect(button.text()).toBe('Loading…');
+        await button.trigger('click');
+
+        expect(playback.getVariableHistory).toHaveBeenCalledTimes(2);
+        loadMore.resolve([]);
+        await flushPromises();
+    });
+
+    it('clears the history instead of requesting it when no project is selected', async () => {
+        const wrapper = mount(VariableBrowser, {
+            global: {
+                provide: { state: ref({ selectedProject: null }) },
+                stubs: { FontAwesomeIcon: true },
+            },
+        });
+        await flushPromises();
+        await openHistory(wrapper);
+
+        expect(playback.getVariableHistory).not.toHaveBeenCalled();
+        expect(wrapper.text()).toContain('No variable changes recorded yet.');
+    });
+
+    // -------------------- "no matches" across all three modes -------------------- //
+
+    // Both directions per mode: emptyForFilter was restructured for History, and a mode falling
+    // through to another mode's branch would only show up as a wrong answer in one of them.
+
+    it('in Values mode, says nothing matches only when no stored variable does', async () => {
+        const wrapper = mountBrowser();   // Values: $mood
+        await flushPromises();
+        const search = wrapper.get('input[type="text"]');
+
+        await search.setValue('mo');
+        expect(wrapper.text()).not.toContain('No variables match');
+        await search.setValue('zzz');
+        expect(wrapper.text()).toContain('No variables match “zzz”.');
+    });
+
+    it('in Used mode, says nothing matches only when no project variable does', async () => {
+        const wrapper = mountBrowser();   // Used: $currentTime (but not $mood)
+        await flushPromises();
+        await openMode(wrapper, 'Used');
+        const search = wrapper.get('input[type="text"]');
+
+        await search.setValue('curr');
+        expect(wrapper.text()).not.toContain('No variables match');
+        await search.setValue('mood');
+        expect(wrapper.text()).toContain('No variables match “mood”.');
+    });
+
+    it('says nothing matches in History only once there is nothing more to load', async () => {
+        playback.getVariableHistory.mockResolvedValue([entry(2, 'mood'), entry(1, 'energy')]);
+        const wrapper = mountBrowser();
+        await flushPromises();
+        await openHistory(wrapper);
+
+        await wrapper.get('input[type="text"]').setValue('zz');
+        expect(wrapper.text()).toContain('No variables match “zz”.');
+        expect(wrapper.find('[data-test="history-loaded-only-hint"]').exists()).toBe(false);
+    });
+
+    it('shows the loaded-only hint instead of "no matches" while older entries may exist', async () => {
+        playback.getVariableHistory.mockResolvedValue(fullPage(100, 'busy'));
+        const wrapper = mountBrowser();
+        await flushPromises();
+        await openHistory(wrapper);
+
+        await wrapper.get('input[type="text"]').setValue('zz');
+        expect(wrapper.text()).not.toContain('No variables match');
+        expect(wrapper.get('[data-test="history-loaded-only-hint"]').text())
+            .toContain('matches in loaded entries');
+    });
+
+    it('words the hint for oldest-first order without a search', async () => {
+        playback.getVariableHistory.mockResolvedValue(fullPage(100, 'busy'));
+        const wrapper = mountBrowser();
+        await flushPromises();
+        await openHistory(wrapper);
+
+        await wrapper.get('select').setValue('oldest');
+        const hint = wrapper.get('[data-test="history-loaded-only-hint"]').text();
+        expect(hint).toContain('Showing loaded entries only');
+        expect(hint).toContain('look further back');
+    });
+
+    // -------------------- the Values tooltip (decision 3 on #323) -------------------- //
+
+    it('shows a value\'s last-updated time in the Studio user\'s time zone, with the zone named', async () => {
+        playback.getVariables.mockResolvedValue([{ name: 'mood', value: 'fine',
+            updatedTime: Date.UTC(2026, 9, 11, 11, 46, 38), updatedTimeZone: 'Europe/Lisbon',
+            updatedSource: 'EXTERNAL' }]);
+        const wrapper = mountBrowser();
+        await flushPromises();
+
+        // The info button is the one with the mouseenter handler that opens the tooltip.
+        const infoButton = wrapper.findAll('button').find((b) => b.html().includes('fa-circle-info'));
+        await infoButton.trigger('mouseenter');
+
+        const tooltip = document.body.textContent;
+        // Tokyo (the mocked browser zone): 20:46:38 / 8:46:38 PM, not Lisbon's 12:46:38.
+        expect(tooltip).toMatch(/\b(20|8):46:38\b/);
+        expect(tooltip).toMatch(/GMT\+9|JST/);
+        // The zone it was recorded in is still shown, on its own line.
+        expect(tooltip).toContain('Europe/Lisbon');
+        expect(tooltip).toContain('External Service');
     });
 });
