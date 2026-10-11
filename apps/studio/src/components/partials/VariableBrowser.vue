@@ -3,7 +3,7 @@ export default { inheritAttrs: false };
 </script>
 
 <script setup>
-import { computed, inject, onMounted, ref, useAttrs } from 'vue';
+import { computed, inject, onMounted, ref, useAttrs, watch } from 'vue';
 const attrs = useAttrs();
 const state = inject('state');
 import { useClient, useAuthoringClient, getBrowserTimeZone } from '@/composables/client.js';
@@ -11,28 +11,29 @@ import { logEvent } from '@/composables/debug-log.js';
 import { describeError } from '@/composables/error-message.js';
 import { showError, dismissError } from '@/composables/error-toast.js';
 import { useLatestRequest } from '@/composables/latest-request.js';
+import {
+    HISTORY_PAGE_SIZE, sourceLabel, formatTimestamp, formatHistoryValue, mergeHistoryPage,
+    mayHaveMore, resolveExactName, filterSortHistory, needsLoadedOnlyHint,
+} from '@/composables/variable-history.js';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import IconButton from '../widgets/IconButton.vue';
 import MainPagePanelHeader from '../widgets/MainPagePanelHeader.vue';
 import MainPagePanelContainer from '../widgets/MainPagePanelContainer.vue';
 
+// Times are always shown in the time zone of the person using Studio (#323) — the same one sent to
+// the API — not the zone a value was recorded in. The long time style includes the zone's name,
+// so the tooltip makes that explicit.
 function formatUpdatedTime(variable) {
-    if (!variable.updatedTime) return 'Unknown';
-    const date = new Date(variable.updatedTime);
-    const tz = variable.updatedTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return date.toLocaleString(undefined, { timeZone: tz, dateStyle: 'medium', timeStyle: 'medium' });
+    return formatTimestamp(variable.updatedTime || null, getBrowserTimeZone(),
+        { dateStyle: 'medium', timeStyle: 'long' }) ?? 'Unknown';
 }
 
-const sourceLabels = {
-    UNKNOWN:      { label: 'Unknown',          italic: true },
-    DLB_SCRIPT:   { label: 'Script',           italic: false },
-    INPUT_REPLY:  { label: 'User Input',       italic: false },
-    WEB_SERVICE:  { label: 'Web Service',      italic: false },
-    EXTERNAL:     { label: 'External Service', italic: false },
-};
-
 function formatUpdatedSource(variable) {
-    return sourceLabels[variable.updatedSource] ?? { label: 'Unknown', italic: true };
+    return sourceLabel(variable.updatedSource);
+}
+
+function formatHistoryTime(entry) {
+    return formatTimestamp(entry.recordedTime, getBrowserTimeZone());
 }
 
 const tooltip = ref(null);   // { variable, x, y }
@@ -58,11 +59,13 @@ const emit = defineEmits([
 const client = useClient();
 const authoringClient = useAuthoringClient();
 
-// Two distinct things, one panel, one at a time (see `mode`):
+// Three distinct things, one panel, one at a time (see `mode`):
 //   'values'  — this logged-in user's stored variable values for the current project; mutable
 //               runtime state. Variables are project-scoped (#86).
 //   'project' — every variable name the project's dialogues reference (read/written);
 //               static authoring info, read-only (GET /variables/list-project).
+//   'history' — every recorded change to this user's variables in the project, newest first and
+//               paged (GET /variables/history, #323). Only loaded while this mode is showing.
 const mode = ref('values');
 const variables = ref([]);
 const projectVariables = ref([]); // [{ name, read, written }]
@@ -101,9 +104,117 @@ const displayedProjectVariables = computed(() => filterSort(mergedProjectVariabl
 // the 'project' list.
 const storedNames = computed(() => new Set(variables.value.map((v) => v.name)));
 
-const emptyForFilter = computed(() => isSearching.value && (mode.value === 'values'
-    ? displayedVariables.value.length === 0
-    : displayedProjectVariables.value.length === 0));
+// -------------------- 'history' mode -------------------- //
+
+const historyEntries = ref([]);      // loaded so far, newest first, de-duplicated by id
+const historyPagesLoaded = ref(0);
+const historyHasMore = ref(false);
+const historyLoading = ref(false);
+const historyLoadingMore = ref(false);
+const historyOrder = ref('newest');  // 'newest' | 'oldest' — History has its own sort (#323)
+
+// Every variable name Studio knows of for this project — what the search box's text is matched
+// against to decide whether it names one variable exactly (asked of the server) or not (filtered
+// in the browser). "Used" names need an editor role; for others that list is simply empty.
+const knownNames = computed(() => new Set([
+    ...variables.value.map((v) => v.name),
+    ...mergedProjectVariables.value.map((v) => v.name),
+    ...historyEntries.value.map((e) => e.name),
+]));
+const historyExactName = computed(() =>
+    mode.value === 'history' ? resolveExactName(searchQuery.value, knownNames.value) : null);
+
+const displayedHistory = computed(() => filterSortHistory(historyEntries.value, {
+    query: searchQuery.value, exactName: historyExactName.value, order: historyOrder.value,
+}));
+const showLoadedOnlyHint = computed(() => needsLoadedOnlyHint({
+    query: searchQuery.value, exactName: historyExactName.value, order: historyOrder.value,
+    hasMore: historyHasMore.value,
+}));
+
+// Bumped by every fresh (page 0) load. Each request remembers the generation it belongs to and
+// drops its result if a newer load has started since — so neither a slow refresh nor a slow "Load
+// more" can land on top of newer data. (A plain useLatestRequest() isn't enough here: a "Load more"
+// must not cancel the refresh it builds on, only be cancelled by the next one.)
+let historyGeneration = 0;
+
+function historyRequest(page) {
+    return client.getVariableHistory({
+        projectSlug: state.value.selectedProject?.slug,
+        variableName: historyExactName.value ?? undefined,
+        page,
+        pageSize: HISTORY_PAGE_SIZE,
+    });
+}
+
+// Always starts over from the first page (#323): new entries appear at the top anyway, and
+// re-requesting every page already shown would mean merging pages that have since shifted.
+const loadHistory = () => {
+    const generation = ++historyGeneration;
+    historyLoadingMore.value = false;
+    if (!state.value.selectedProject?.slug) {
+        historyEntries.value = [];
+        historyPagesLoaded.value = 0;
+        historyHasMore.value = false;
+        return;
+    }
+    historyLoading.value = true;
+    historyRequest(0)
+    .then((page) => {
+        if (generation !== historyGeneration) return;
+        historyEntries.value = mergeHistoryPage([], page);
+        historyPagesLoaded.value = 1;
+        historyHasMore.value = mayHaveMore(page, HISTORY_PAGE_SIZE);
+    })
+    .catch((error) => {
+        if (generation !== historyGeneration) return;
+        showError(describeError(error));
+    })
+    .finally(() => {
+        if (generation === historyGeneration) historyLoading.value = false;
+    });
+};
+
+function loadMoreHistory() {
+    if (historyLoading.value || historyLoadingMore.value || !historyHasMore.value) return;
+    const generation = historyGeneration;
+    historyLoadingMore.value = true;
+    historyRequest(historyPagesLoaded.value)
+    .then((page) => {
+        if (generation !== historyGeneration) return;
+        historyEntries.value = mergeHistoryPage(historyEntries.value, page);
+        historyPagesLoaded.value += 1;
+        historyHasMore.value = mayHaveMore(page, HISTORY_PAGE_SIZE);
+    })
+    .catch((error) => {
+        if (generation !== historyGeneration) return;
+        showError(describeError(error));
+    })
+    .finally(() => {
+        if (generation === historyGeneration) historyLoadingMore.value = false;
+    });
+}
+
+// Clicking a variable's name in the history narrows it to that variable — which, being an exact
+// known name, is then asked of the server.
+function showOnlyVariable(name) {
+    searchQuery.value = name;
+}
+
+// Load when History is opened, and start over whenever the server-side filter changes (typing a
+// name in full, or editing it back to a partial one). One watcher for both, since opening History
+// with an exact name already in the search box changes both at once — one request, not two.
+watch([mode, historyExactName], ([newMode]) => {
+    if (newMode === 'history') loadHistory();
+});
+
+const emptyForFilter = computed(() => {
+    if (!isSearching.value) return false;
+    if (mode.value === 'values') return displayedVariables.value.length === 0;
+    if (mode.value === 'project') return displayedProjectVariables.value.length === 0;
+    // History: only once nothing more could match — otherwise the loaded-only hint says it all.
+    return displayedHistory.value.length === 0 && !historyHasMore.value && !historyLoading.value;
+});
 
 // Guards against out-of-order responses: loadVariables() can fire in quick succession (e.g. once
 // per dialogue step while testing) with no guarantee the requests resolve in the order they were
@@ -131,6 +242,10 @@ const loadVariables = () => {
         if (!isCurrentLoadRequest(requestId)) return;
         showError(describeError(error));
     });
+    // MainPage calls loadVariables() after every dialogue step, variable change and delegate-user
+    // change — so hooking in here keeps the history current in all of those cases, without asking
+    // for it at all while History isn't showing.
+    if (mode.value === 'history') loadHistory();
 };
 
 // The project's variable set doesn't change during a test session, so this stays out of
@@ -247,6 +362,13 @@ onMounted(() => {
                         title="Every variable used anywhere in this project, plus any the configured External Variable Service supports (read-only)"
                         @click="mode = 'project'"
                     >Used</button>
+                    <button
+                        type="button"
+                        class="px-2 h-7.5 cursor-pointer border-l border-grey-light"
+                        :class="mode === 'history' ? 'bg-orange-dark text-white' : 'bg-white text-grey-dark hover:bg-grey-lighter'"
+                        title="Every recorded change to this user's variables in the current project, newest first"
+                        @click="mode = 'history'"
+                    >History</button>
                 </div>
                 <IconButton icon="fa-solid fa-arrows-rotate" title="Refresh variables" @click="refresh" />
                 <IconButton icon="fa-solid fa-angles-right" title="Collapse Variable Browser" @click="emit('collapse')" />
@@ -274,7 +396,18 @@ onMounted(() => {
                     <FontAwesomeIcon icon="fa-solid fa-xmark" class="text-[10px]" />
                 </button>
             </div>
+            <!-- History keeps its own sort, so switching modes never carries one's order to the other -->
             <select
+                v-if="mode === 'history'"
+                v-model="historyOrder"
+                title="Sort changes"
+                class="h-7.5 px-2 shrink-0 border border-grey-light rounded-lg text-xs font-title focus:outline-none focus:border-orange-dark bg-white cursor-pointer"
+            >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+            </select>
+            <select
+                v-else
                 v-model="sortMode"
                 title="Sort variables"
                 class="h-7.5 px-2 shrink-0 border border-grey-light rounded-lg text-xs font-title focus:outline-none focus:border-orange-dark bg-white cursor-pointer"
@@ -310,6 +443,45 @@ onMounted(() => {
                         <FontAwesomeIcon icon="fa-regular fa-copy" />
                     </button>
                 </div>
+            </div>
+
+            <!-- 'history' mode — every recorded change, newest first (or oldest first, among the
+                 entries loaded so far), paged with "Load more" -->
+            <div v-else-if="mode === 'history'" class="flex flex-col gap-0.5 m-1">
+                <div v-if="showLoadedOnlyHint" data-test="history-loaded-only-hint"
+                    class="font-title text-[10px] italic text-grey-dark px-1 pb-0.5">
+                    Showing {{ isSearching ? 'matches in ' : '' }}loaded entries only — load more to {{ isSearching ? 'search' : 'look' }} further back.
+                </div>
+                <div v-if="!historyLoading && historyEntries.length === 0 && !isSearching"
+                    class="font-title text-xs italic text-grey-dark p-1">
+                    No variable changes recorded yet.
+                </div>
+                <div v-for="entry in displayedHistory" :key="entry.id" data-test="history-entry"
+                    class="flex flex-col min-w-0 bg-grey-lighter px-1 py-0.5">
+                    <!-- The panel is narrow: name and value share the first line (both truncating,
+                         full text on hover), time and source the second. -->
+                    <div class="flex items-baseline gap-1.5 min-w-0">
+                        <button type="button" data-test="history-entry-name"
+                            class="font-title font-semibold text-xs text-orange-darker max-w-[60%] truncate shrink-0 cursor-pointer hover:underline text-left"
+                            :title="'Show only $' + entry.name + '\'s history'"
+                            @click="showOnlyVariable(entry.name)">${{ entry.name }}</button>
+                        <span v-if="formatHistoryValue(entry.value) === null" data-test="history-entry-value"
+                            class="font-title text-xs italic text-grey-dark min-w-0 truncate">removed</span>
+                        <span v-else data-test="history-entry-value"
+                            class="font-title text-xs text-grey-darker min-w-0 truncate"
+                            :title="formatHistoryValue(entry.value)">{{ formatHistoryValue(entry.value) }}</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-1.5 min-w-0">
+                        <span data-test="history-entry-time" class="font-title text-[10px] text-grey-dark truncate">{{ formatHistoryTime(entry) }}</span>
+                        <span data-test="history-entry-source"
+                            class="shrink-0 rounded px-1 font-title text-[10px] bg-white border border-grey-light text-grey-dark"
+                            :class="{ italic: sourceLabel(entry.source).italic }">{{ sourceLabel(entry.source).label }}</span>
+                    </div>
+                </div>
+                <button v-if="historyHasMore" type="button" data-test="history-load-more"
+                    class="mt-1 self-center font-title text-xs px-3 h-7 rounded-lg border border-grey-light bg-white text-orange-darker hover:bg-grey-lighter cursor-pointer disabled:cursor-default disabled:text-grey-dark"
+                    :disabled="historyLoading || historyLoadingMore"
+                    @click="loadMoreHistory">{{ historyLoadingMore ? 'Loading…' : 'Load more' }}</button>
             </div>
 
             <!-- 'values' mode — this user's stored variable values, editable -->
