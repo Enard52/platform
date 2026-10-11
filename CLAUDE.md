@@ -167,7 +167,7 @@ Authoring (used by Studio's visual editor) operates on a separate, mutable **dra
 - **`AuthoringController`** (`/v{version}/authoring`) — REST surface for the above: `list-dialogues`, `create-dialogue`, `delete-dialogue`, `restore-dialogue`, `rename-dialogue`, `find-dialogue-references`, `list-nodes`, `create-node`, `update-node`, `delete-node`, `rename-node`, `find-node-references`, `update-translation`, `delete-translation`.
 - **`DraftExecutionController` / `DraftExecutionService`** — Lets Studio run/test a dialogue against its unpublished draft content (an ephemeral "draft test" session), separate from normal runtime execution against published content.
 
-Migration `V6__add_draft_dialogue_status_flags.sql` added the `is_new`/`is_changed`/`is_deleted` columns backing this (plus a since-dropped `renamed_from` column — see `V9__drop_draft_dialogue_renamed_from.sql`).
+The `is_new`/`is_changed`/`is_deleted` columns backing this live on the `draft_dialogues` table, created in `V1__create_schema.sql` (the original incremental migrations, including the ones that added these flags, were squashed into `V1` on 2026-07-16).
 
 ### BFF service (`apps/bff`)
 
