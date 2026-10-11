@@ -28,10 +28,13 @@
 
 package com.dialoguebranch.web.service.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -42,7 +45,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -65,6 +71,9 @@ class VariableHistoryIntegrationTest {
 
 	@Autowired
 	MockMvc mockMvc;
+
+	@Autowired
+	ObjectMapper objectMapper;
 
 	/** A fresh user per test, so tests sharing the Spring context never see each other's rows. */
 	private static String newSubject() {
@@ -90,6 +99,29 @@ class VariableHistoryIntegrationTest {
 		mockMvc.perform(as(request, subject, "participant")).andExpect(status().isOk());
 	}
 
+	/** Starts a published default-test dialogue and returns the response's JSON. */
+	private JsonNode startDialogue(String subject, String dialogueName) throws Exception {
+		String body = mockMvc.perform(as(post("/v1/dialogue/start")
+						.param("projectSlug", PROJECT).param("dialogueName", dialogueName)
+						.param("language", "en").param("timeZone", "Europe/Lisbon"),
+						subject, "participant"))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString();
+		return objectMapper.readTree(body);
+	}
+
+	/** Picks a reply in an ongoing dialogue, optionally with input-field values as the body. */
+	private void progress(String subject, JsonNode step, int replyId, String inputValuesJson)
+			throws Exception {
+		MockHttpServletRequestBuilder request = post("/v1/dialogue/progress")
+				.param("loggedDialogueId", step.get("loggedDialogueId").asText())
+				.param("loggedInteractionIndex", step.get("loggedInteractionIndex").asText())
+				.param("replyId", String.valueOf(replyId));
+		if (inputValuesJson != null)
+			request.contentType(MediaType.APPLICATION_JSON).content(inputValuesJson);
+		mockMvc.perform(as(request, subject, "participant")).andExpect(status().isOk());
+	}
+
 	private MockHttpServletRequestBuilder history(String subject) {
 		return as(get("/v1/variables/history").param("projectSlug", PROJECT), subject,
 				"participant");
@@ -111,7 +143,8 @@ class VariableHistoryIntegrationTest {
 				.andExpect(jsonPath("$[2].value").value("fine"))
 				.andExpect(jsonPath("$[0].source").value("WEB_SERVICE"))
 				.andExpect(jsonPath("$[0].recordedTimeZone").value("Europe/Lisbon"))
-				.andExpect(jsonPath("$[0].recordedTime").isNumber());
+				.andExpect(jsonPath("$[0].recordedTime").isNumber())
+				.andExpect(jsonPath("$[0].id").isNumber());
 	}
 
 	@Test
@@ -156,6 +189,52 @@ class VariableHistoryIntegrationTest {
 		mockMvc.perform(history(bob))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$", hasSize(0)));
+	}
+
+	@Test
+	void setCommandsInAPlayedDialogueAreRecordedAsScript() throws Exception {
+		// The seeded "variables" dialogue: Start sets $subjectToday; its reply leads to
+		// Variables1, which sets $variableOne, $variable2 and $variable_three.
+		String subject = newSubject();
+		JsonNode start = startDialogue(subject, "variables");
+		progress(subject, start, start.get("replies").get(0).get("replyId").asInt(), null);
+
+		mockMvc.perform(history(subject))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$", hasSize(4)))
+				.andExpect(jsonPath("$[*].source", everyItem(is("DLB_SCRIPT"))))
+				.andExpect(jsonPath("$[*].name", contains(
+						"variable_three", "variable2", "variableOne", "subjectToday")))
+				.andExpect(jsonPath("$[0].value").value("Three"))
+				.andExpect(jsonPath("$[3].value").value("variables"));
+	}
+
+	@Test
+	void valuesEnteredInAReplysInputFieldAreRecordedAsInputReply() throws Exception {
+		// The seeded "inputs" dialogue: Start's only reply holds a text input for $inName.
+		String subject = newSubject();
+		JsonNode start = startDialogue(subject, "inputs");
+		progress(subject, start, start.get("replies").get(0).get("replyId").asInt(),
+				"{\"inName\": \"Robin\"}");
+
+		mockMvc.perform(history(subject).param("variableName", "inName"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$", hasSize(1)))
+				.andExpect(jsonPath("$[0].value").value("Robin"))
+				.andExpect(jsonPath("$[0].source").value("INPUT_REPLY"));
+	}
+
+	@Test
+	void anAdminCanReadAnotherUsersHistoryThroughDelegation() throws Exception {
+		String participant = newSubject();
+		setSingle(participant, "mood", "fine");
+
+		mockMvc.perform(as(get("/v1/variables/history").param("projectSlug", PROJECT)
+						.param("delegateUser", participant), newSubject(), "admin"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$", hasSize(1)))
+				.andExpect(jsonPath("$[0].name").value("mood"))
+				.andExpect(jsonPath("$[0].value").value("fine"));
 	}
 
 	@Test

@@ -28,6 +28,7 @@
 
 import { BaseClient } from "./BaseClient.js";
 import { Variable } from "./model/Variable.js";
+import { VariableHistoryEntry } from "./model/VariableHistoryEntry.js";
 import { DialogueStep } from "./model/DialogueStep.js";
 import { ServerInfo } from "./model/ServerInfo.js";
 import { OngoingDialogue } from "./model/OngoingDialogue.js";
@@ -276,6 +277,47 @@ export class DialogueBranchClient extends BaseClient {
         })
         .then((response) => this._handleResponse(response))
         .then((data) => (data ?? []).map((entry) => Variable.fromJSON(entry)))
+    }
+
+    /**
+     * Returns a page of the current user's Dialogue Branch variable history in a project: every
+     * recorded change to their variables (one entry per variable per change, with `null` recording
+     * a removal), **newest first**. Repeated identical values are returned as recorded, not
+     * collapsed.
+     *
+     * Pages are by offset, so if new changes are recorded between two calls, a later page can
+     * repeat entries from an earlier one — use each entry's {@link VariableHistoryEntry#id} to
+     * recognise those.
+     *
+     * @param {Object} [options]
+     * @param {string} [options.projectSlug] The project's slug. See {@link listDialogues}'s
+     * `projectSlug` for when to omit it.
+     * @param {string} [options.variableName] Return only this variable's history (exact name,
+     * without the leading `$`); omit for all variables.
+     * @param {number} [options.page] The zero-based page index; the server defaults to `0`.
+     * @param {number} [options.pageSize] Entries per page; the server defaults to `50` and caps it
+     * at `200`.
+     * @returns {Promise<VariableHistoryEntry[]>} The requested page — empty past the last one.
+     */
+    getVariableHistory({ projectSlug, variableName, page, pageSize } = {}) {
+        let url = this._baseUrl + "/variables/history";
+
+        const params = [];
+        if (projectSlug) params.push("projectSlug=" + encodeURIComponent(projectSlug));
+        if (variableName) params.push("variableName=" + encodeURIComponent(variableName));
+        if (page != null) params.push("page=" + encodeURIComponent(page));
+        if (pageSize != null) params.push("pageSize=" + encodeURIComponent(pageSize));
+        // See getVariables()'s equivalent comment on why delegateUser is built as a plain param
+        // here rather than via `_delegateParam`.
+        if (this.delegateUser) params.push("delegateUser=" + encodeURIComponent(this.delegateUser));
+        if (params.length) url += "?" + params.join("&");
+
+        return this._fetch(url, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" }
+        })
+        .then((response) => this._handleResponse(response))
+        .then((data) => (data ?? []).map((entry) => VariableHistoryEntry.fromJSON(entry)));
     }
 
     /**

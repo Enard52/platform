@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -234,10 +235,13 @@ class VariableHistoryStorageHandlerUnitTest {
 
 	// -------------------- read() -------------------- //
 
-	private static DBVariableHistory row(String name, String json) {
-		return new DBVariableHistory(new DBUser(), new DBProject(), name, json,
+	/** A stored row, with the id the database would have assigned it. */
+	private static DBVariableHistory row(long id, String name, String json) {
+		DBVariableHistory row = new DBVariableHistory(new DBUser(), new DBProject(), name, json,
 				RECORDED.toInstant().toEpochMilli(), "Europe/Lisbon",
 				VariableUpdatedSource.WEB_SERVICE);
+		ReflectionTestUtils.setField(row, "id", id);
+		return row;
 	}
 
 	@Test
@@ -269,12 +273,15 @@ class VariableHistoryStorageHandlerUnitTest {
 	@Test
 	void readParsesStoredJsonBackIntoValuesAndKeepsNullsAndOrder() throws Exception {
 		when(historyRepository.findByUserAndProjectOrderByIdDesc(any(), any(), any()))
-				.thenReturn(List.of(row("mood", null), row("count", "3"), row("mood", "\"fine\"")));
+				.thenReturn(List.of(row(12, "mood", null), row(11, "count", "3"),
+						row(10, "mood", "\"fine\"")));
 
 		List<VariableHistoryEntry> entries = handler.read(USER_ID, project, null, 0, 50);
 
 		assertEquals(List.of("mood", "count", "mood"),
 				entries.stream().map(VariableHistoryEntry::name).toList());
+		assertEquals(List.of(12L, 11L, 10L),
+				entries.stream().map(VariableHistoryEntry::id).toList());
 		assertNull(entries.get(0).value());
 		assertEquals(3, entries.get(1).value());
 		assertEquals("fine", entries.get(2).value());

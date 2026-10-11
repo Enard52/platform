@@ -35,6 +35,9 @@ import org.jspecify.annotations.Nullable;
  * One entry in the {@code /variables/history} response: the value a Dialogue Branch Variable was
  * given by a single change, and when (#259).
  *
+ * @param id               the entry's identifier: unique, and increasing in the order entries were
+ *                         recorded. Lets a client paging through the history recognise an entry
+ *                         it has already seen when new entries shift the pages in between.
  * @param name             the variable name.
  * @param value            the value the variable was given, or {@code null} if this change removed
  *                         it.
@@ -44,6 +47,6 @@ import org.jspecify.annotations.Nullable;
  * @param source           where the change came from (a script, a reply input, the Web Service
  *                         API, or the External Variable Service).
  */
-public record VariableHistoryEntry(String name, @Nullable Object value, long recordedTime,
+public record VariableHistoryEntry(long id, String name, @Nullable Object value, long recordedTime,
 		String recordedTimeZone, VariableUpdatedSource source) {
 }

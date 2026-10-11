@@ -32,6 +32,7 @@ import { DialogueStep } from './model/DialogueStep.js';
 import { ServerInfo } from './model/ServerInfo.js';
 import { OngoingDialogue } from './model/OngoingDialogue.js';
 import { Variable } from './model/Variable.js';
+import { VariableHistoryEntry } from './model/VariableHistoryEntry.js';
 
 function jsonResponse(payload) {
     return new Response(JSON.stringify(payload), {
@@ -260,6 +261,74 @@ describe('DialogueBranchClient playback methods', () => {
         await c.getVariables();
 
         expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/variables/get?delegateUser=bob');
+    });
+
+    it('getVariableHistory() GETs with no query string when every option is omitted', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await client().getVariableHistory();
+
+        expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/variables/history');
+        expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+    });
+
+    it('getVariableHistory() sends projectSlug/variableName/page/pageSize when given', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await client().getVariableHistory({ projectSlug: 'default-test', variableName: 'mood',
+            page: 2, pageSize: 25 });
+
+        expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/variables/history'
+            + '?projectSlug=default-test&variableName=mood&page=2&pageSize=25');
+    });
+
+    it('getVariableHistory() sends page=0 (a falsy but meaningful value)', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await client().getVariableHistory({ projectSlug: 'p', page: 0 });
+
+        expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/variables/history?projectSlug=p&page=0');
+    });
+
+    it('getVariableHistory() maps the response array to VariableHistoryEntry instances, keeping order and nulls', async () => {
+        const fetchMock = vi.fn().mockResolvedValue(jsonResponse([
+            { id: 12, name: 'mood', value: null, recordedTime: 3, recordedTimeZone: 'Europe/Lisbon', source: 'WEB_SERVICE' },
+            { id: 11, name: 'mood', value: 'fine', recordedTime: 2, recordedTimeZone: 'Europe/Lisbon', source: 'DLB_SCRIPT' },
+        ]));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const entries = await client().getVariableHistory({ projectSlug: 'default-test' });
+
+        expect(entries).toHaveLength(2);
+        expect(entries[0]).toBeInstanceOf(VariableHistoryEntry);
+        expect(entries.map((e) => e.id)).toEqual([12, 11]);
+        expect(entries[0].value).toBeNull();
+        expect(entries[0].isRemoval).toBe(true);
+        expect(entries[1].value).toBe('fine');
+        expect(entries[1].source).toBe('DLB_SCRIPT');
+    });
+
+    it('getVariableHistory() defaults to an empty array when the body is null', async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(null)));
+
+        expect(await client().getVariableHistory()).toEqual([]);
+    });
+
+    it('getVariableHistory() appends delegateUser, with a leading ? when it is the only param', async () => {
+        // Two calls: each needs its own Response, since a body can only be read once.
+        const fetchMock = vi.fn().mockImplementation(async () => jsonResponse([]));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const c = client();
+        c.delegateUser = 'bob';
+        await c.getVariableHistory();
+        await c.getVariableHistory({ projectSlug: 'p' });
+
+        expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/variables/history?delegateUser=bob');
+        expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/variables/history?projectSlug=p&delegateUser=bob');
     });
 
     it('getOngoingDialogue() parses an OngoingDialogue when one exists', async () => {

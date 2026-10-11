@@ -6,6 +6,7 @@ import { ServerInfo } from './ServerInfo.js';
 import { User } from './User.js';
 import { OngoingDialogue } from './OngoingDialogue.js';
 import { Variable } from './Variable.js';
+import { VariableHistoryEntry } from './VariableHistoryEntry.js';
 
 describe('Statement.fromJSON', () => {
     it('parses its segments', () => {
@@ -87,5 +88,34 @@ describe('Variable.fromJSON', () => {
         expect(variable.value).toBe('10');
         expect(variable.updatedTimeZone).toBe('Europe/Lisbon');
         expect(variable.updatedSource).toBe('DLB_SCRIPT');
+    });
+});
+
+describe('VariableHistoryEntry.fromJSON', () => {
+    it('carries id, name, value, recordedTime, recordedTimeZone and source', () => {
+        const entry = VariableHistoryEntry.fromJSON({
+            id: 7, name: 'mood', value: 'fine', recordedTime: 1700000000000,
+            recordedTimeZone: 'Europe/Lisbon', source: 'INPUT_REPLY',
+        });
+        expect(entry.id).toBe(7);
+        expect(entry.name).toBe('mood');
+        expect(entry.value).toBe('fine');
+        expect(entry.isRemoval).toBe(false);
+        expect(entry.recordedTime).toBe(1700000000000);
+        expect(entry.recordedTimeZone).toBe('Europe/Lisbon');
+        expect(entry.source).toBe('INPUT_REPLY');
+    });
+
+    it('treats a null or missing value as a removal', () => {
+        expect(VariableHistoryEntry.fromJSON({ id: 1, name: 'a', value: null }).isRemoval).toBe(true);
+        expect(VariableHistoryEntry.fromJSON({ id: 2, name: 'a' }).value).toBeNull();
+    });
+
+    it('keeps falsy-but-real values (0, false, empty string) as values, not removals', () => {
+        for (const value of [0, false, '']) {
+            const entry = VariableHistoryEntry.fromJSON({ id: 3, name: 'a', value });
+            expect(entry.value).toBe(value);
+            expect(entry.isRemoval).toBe(false);
+        }
     });
 });

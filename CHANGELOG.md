@@ -17,6 +17,23 @@ and this project adheres to a single monorepo-wide version declared in `global.j
   `GET /variables/history` end-point (`projectSlug`, optional `variableName`, `page`/`pageSize`;
   newest first), gated by a new `VARIABLE_READ_OWN_HISTORY` permission held by every role.
   Each entry is stamped with the Web Service's own clock at the moment of recording.
+  Each entry also carries an `id`, increasing in recording order, so a client paging through
+  the history can de-duplicate entries when new ones shift the pages
+  ([#323](https://github.com/dialoguebranch/platform/issues/323)).
+- Client JS: `DialogueBranchClient.getVariableHistory({ projectSlug, variableName, page,
+  pageSize })` reads the new `GET /variables/history` end-point, returning
+  `VariableHistoryEntry` instances (new model type, also exported from `./protocol`)
+  ([#323](https://github.com/dialoguebranch/platform/issues/323)).
+- Studio: a **History** mode in the Variable Browser (Values · Used · History)
+  ([#323](https://github.com/dialoguebranch/platform/issues/323)), listing every recorded change
+  to the current user's variables in the project, newest first, with "Load more" paging. Each
+  entry shows the value (or *removed*), its source, and when it was recorded, in the Studio
+  user's own time zone. Search and sort apply: a search naming a known variable exactly is
+  answered by the server, so that variable's full history pages correctly; partial text filters
+  the loaded entries, with a hint while older ones aren't loaded yet. Sort is newest/oldest
+  first. Clicking a name narrows the list to that variable. It follows the delegate user and
+  refreshes after every dialogue step and variable change, and is only requested while History
+  is showing.
 
 ### Changed
 
@@ -102,6 +119,9 @@ and this project adheres to a single monorepo-wide version declared in `global.j
   arbitrary string bypassed it entirely. The wire protocol (`.dlb` script `type="..."` attributes,
   and the `type` field the web service sends clients) is unaffected — both still use the same
   lowercase strings as before.
+- Studio: the Variable Browser's value tooltip now shows a variable's last-updated time in the
+  time zone of the person using Studio (with the zone named), like the new History mode, rather
+  than in the zone it was recorded in ([#323](https://github.com/dialoguebranch/platform/issues/323)).
 
 ### Fixed
 

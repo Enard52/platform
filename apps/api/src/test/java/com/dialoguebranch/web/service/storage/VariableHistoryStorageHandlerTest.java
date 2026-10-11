@@ -51,6 +51,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for {@link VariableHistoryStorageHandler#record}: how each kind of {@link
@@ -119,6 +120,9 @@ class VariableHistoryStorageHandlerTest {
 		for (VariableHistoryEntry entry : entries) assertNull(entry.value());
 		assertEquals(List.of("c", "b", "a"),
 				entries.stream().map(VariableHistoryEntry::name).toList());
+		// Newest first means strictly decreasing ids — what a paging client de-duplicates on.
+		assertTrue(entries.get(0).id() > entries.get(1).id());
+		assertTrue(entries.get(1).id() > entries.get(2).id());
 	}
 
 	@Test

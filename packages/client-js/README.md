@@ -81,7 +81,7 @@ case of a browser app talking to a same-origin (or CORS-enabled) Web Service.
 | `@dialoguebranch/client-js/authoring` | `DialogueBranchAuthoringClient` — project/dialogue authoring |
 | `@dialoguebranch/client-js/protocol` | Side-effect-free re-export of the `model/` wire-protocol types, no transport code — for sharing types without pulling in either client class or `fetch` |
 | `@dialoguebranch/client-js/ClientState` | Reusable, product-neutral session state |
-| `@dialoguebranch/client-js/model/*` | Individual wire-protocol types (`Reply`, `Segment`, `Action`, etc.) |
+| `@dialoguebranch/client-js/model/*` | Individual wire-protocol types (`Reply`, `Segment`, `Action`, `Variable`, `VariableHistoryEntry`, etc.) |
 | `@dialoguebranch/client-js/util/*` | `AbstractLogger`, `ConsoleLogger` |
 
 ## Development
