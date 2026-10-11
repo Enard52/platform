@@ -94,6 +94,20 @@ jobs:
         working-directory: packages/client-js
         run: npm run --silent sync-version
 
+      # sync-version only rewrites package.json; without this the lockfiles stay at
+      # the previous version and the next local `npm install` leaves a stray diff.
+      # Only the version fields are touched (not `npm install --package-lock-only`,
+      # which also rewrites unrelated entries differently from a full install).
+      # apps/studio's lockfile records client-js's version too (file: dependency).
+      - name: Sync the lockfiles' versions
+        run: |
+          v="${{ steps.version.outputs.new_version }}"
+          jq --indent 2 --arg v "$v" '.version = $v | .packages[""].version = $v' \
+            packages/client-js/package-lock.json > lock.tmp && mv lock.tmp packages/client-js/package-lock.json
+          jq --indent 2 --arg v "$v" '.version = $v | .packages[""].version = $v
+            | .packages["../../packages/client-js"].version = $v' \
+            apps/studio/package-lock.json > lock.tmp && mv lock.tmp apps/studio/package-lock.json
+
       - name: Split the CHANGELOG's Unreleased section into a dated version heading
         run: |
           awk -v version="${{ steps.version.outputs.new_version }}" -v date="$(date +%F)" '
@@ -120,7 +134,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add global.json CHANGELOG.md apps/studio/package.json apps/studio/package-lock.json packages/client-js/package.json
+          git add global.json CHANGELOG.md apps/studio/package.json apps/studio/package-lock.json packages/client-js/package.json packages/client-js/package-lock.json
           git commit -m "Release ${{ steps.version.outputs.new_tag }}"
 
       - name: Push the release branch
