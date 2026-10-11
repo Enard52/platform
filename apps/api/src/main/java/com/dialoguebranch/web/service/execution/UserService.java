@@ -34,6 +34,7 @@ import com.dialoguebranch.exception.UnknownLanguageCodeException;
 import com.dialoguebranch.execution.*;
 import com.dialoguebranch.i18n.TranslationContext;
 import com.dialoguebranch.model.execute.*;
+import com.dialoguebranch.web.service.DateTimeUtils;
 import com.dialoguebranch.web.service.DlbProperties;
 import com.dialoguebranch.web.service.auth.DialogueBranchUserId;
 import com.dialoguebranch.web.service.exception.DatabaseException;
@@ -42,6 +43,7 @@ import com.dialoguebranch.web.service.repository.DBUserRepository;
 import com.dialoguebranch.web.service.storage.ExternalVariableServiceUpdater;
 import com.dialoguebranch.web.service.storage.LoggedDialogueStore;
 import com.dialoguebranch.web.service.storage.ServerLoggedDialogue;
+import com.dialoguebranch.web.service.storage.VariableHistoryStorageHandler;
 import com.dialoguebranch.web.service.storage.VariableStoreDatabaseStorageHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,6 +81,9 @@ public class UserService {
 
 	private final VariableStoreDatabaseStorageHandler storageHandler;
 
+	/** Records every change to this user's variable stores to the variable history (#259). */
+	private final VariableHistoryStorageHandler historyStorageHandler;
+
 	private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 	private final LoggedDialogueStore loggedDialogueStore;
 	private final DialogueExecutor dialogueExecutor;
@@ -108,6 +113,8 @@ public class UserService {
 	 * @param applicationManager the server's {@link ApplicationManager} instance.
 	 * @param storageHandler the {@link VariableStoreDatabaseStorageHandler} used to read and
 	 *                       persist variables for this user.
+	 * @param historyStorageHandler the {@link VariableHistoryStorageHandler} used to record every
+	 *                              change to this user's variables to the variable history.
 	 * @param userRepository repository used to look up or create the {@link
 	 *                        com.dialoguebranch.web.service.storage.model.DBUser} that owns this
 	 *                       user's logged dialogues.
@@ -119,6 +126,7 @@ public class UserService {
 	public UserService(DialogueBranchUserId userId, User dialogueBranchUser,
 					   ApplicationManager applicationManager,
 					   VariableStoreDatabaseStorageHandler storageHandler,
+					   VariableHistoryStorageHandler historyStorageHandler,
 					   DBUserRepository userRepository,
 					   DBLoggedDialogueRepository loggedDialogueRepository)
 			throws DatabaseException, IOException {
@@ -127,6 +135,7 @@ public class UserService {
 		this.dialogueBranchUser = dialogueBranchUser;
 		this.applicationManager = applicationManager;
 		this.storageHandler = storageHandler;
+		this.historyStorageHandler = historyStorageHandler;
 
 		dialogueExecutor = new DialogueExecutor(this);
 
@@ -212,6 +221,15 @@ public class UserService {
 			} catch (IOException e) {
 				logger.error("Failed to persist variable store changes for user '{}' in "
 						+ "project '{}': {}", userId.subject(), projectSlug, e.getMessage(), e);
+			}
+		});
+		store.addOnChangeListener((changed, changes) -> {
+			try {
+				historyStorageHandler.record(userId, projectSlug, changes,
+						DateTimeUtils.nowMs(dialogueBranchUser.getTimeZone()));
+			} catch (RuntimeException e) {
+				logger.error("Failed to record variable history for user '{}' in project '{}': {}",
+						userId.subject(), projectSlug, e.getMessage(), e);
 			}
 		});
 		if (applicationManager.getDlbProperties().getExternalVariableService().isEnabled()) {

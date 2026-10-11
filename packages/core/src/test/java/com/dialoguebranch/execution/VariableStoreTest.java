@@ -33,6 +33,8 @@ import org.junit.Test;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -379,6 +381,8 @@ public class VariableStoreTest {
 		assertEquals(0, store.getVariables().length);
 		assertEquals(1, listener.changes.size());
 		assertTrue(listener.changes.get(0) instanceof VariableStoreChange.Clear);
+		VariableStoreChange.Clear clear = (VariableStoreChange.Clear) listener.changes.get(0);
+		assertEquals(Set.of("a", "b"), new HashSet<>(clear.getVariableNames()));
 	}
 
 	@Test
@@ -519,11 +523,14 @@ public class VariableStoreTest {
 	}
 
 	@Test
-	public void clearChangeCarriesTimeAndSource() {
-		assertEquals(VariableUpdatedSource.UNKNOWN, new VariableStoreChange.Clear(T).getSource());
+	public void clearChangeCarriesNamesTimeAndSource() {
+		List<String> names = Arrays.asList("x", "y");
+		assertEquals(VariableUpdatedSource.UNKNOWN,
+				new VariableStoreChange.Clear(names, T).getSource());
 		VariableStoreChange.Clear withSource =
-				new VariableStoreChange.Clear(T, VariableUpdatedSource.DLB_SCRIPT);
+				new VariableStoreChange.Clear(names, T, VariableUpdatedSource.DLB_SCRIPT);
 		assertEquals(T, withSource.getTime());
 		assertEquals(VariableUpdatedSource.DLB_SCRIPT, withSource.getSource());
+		assertEquals(names, new ArrayList<>(withSource.getVariableNames()));
 	}
 }

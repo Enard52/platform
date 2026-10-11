@@ -282,24 +282,41 @@ public abstract class VariableStoreChange {
 	 * @author Harm op den Akker
 	 */
 	public static class Clear extends VariableStoreChange {
+		private final Collection<String> clearedVariableNames;
 
 		/**
 		 * Creates an instance of a {@link Clear} {@link VariableStoreChange} indicating a full
 		 * clear (removed all variables) of the Dialogue Branch Variable Store.
+		 * @param variableNames the names of the variables that were in the store before it was
+		 *                      cleared.
 		 * @param time the time that this change took place (in the time zone of the user).
 		 */
-		public Clear(ZonedDateTime time) {
-			super(time,VariableUpdatedSource.UNKNOWN);
+		public Clear(Collection<String> variableNames, ZonedDateTime time) {
+			this(variableNames, time, VariableUpdatedSource.UNKNOWN);
 		}
 
 		/**
 		 * Creates an instance of a {@link Clear} {@link VariableStoreChange} indicating a full
 		 * clear (removed all variables) of the Dialogue Branch Variable Store.
+		 * @param variableNames the names of the variables that were in the store before it was
+		 *                      cleared.
 		 * @param time the time that this change took place (in the time zone of the user).
 		 * @param source the source of the change to the variable store.
 		 */
-		public Clear(ZonedDateTime time, VariableUpdatedSource source) {
+		public Clear(Collection<String> variableNames, ZonedDateTime time,
+				VariableUpdatedSource source) {
 			super(time,source);
+			this.clearedVariableNames = List.copyOf(variableNames);
+		}
+
+		/**
+		 * Returns the names of the variables that were removed by this clear, i.e. every variable
+		 * that was in the store just before it was cleared. A listener only receives the store as
+		 * it is <em>after</em> the change, so this is the only way to know what was removed.
+		 * @return the names of the cleared variables (may be empty, never {@code null}).
+		 */
+		public Collection<String> getVariableNames() {
+			return clearedVariableNames;
 		}
 
 	}

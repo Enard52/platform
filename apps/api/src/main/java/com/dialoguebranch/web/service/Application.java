@@ -31,6 +31,7 @@ package com.dialoguebranch.web.service;
 import com.dialoguebranch.web.service.execution.ApplicationManager;
 import com.dialoguebranch.web.service.repository.DBLoggedDialogueRepository;
 import com.dialoguebranch.web.service.repository.DBUserRepository;
+import com.dialoguebranch.web.service.storage.VariableHistoryStorageHandler;
 import com.dialoguebranch.web.service.storage.VariableStoreDatabaseStorageHandler;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -67,6 +68,8 @@ public class Application implements ApplicationListener<ApplicationEvent> {
 	@Autowired
 	private VariableStoreDatabaseStorageHandler storageHandler;
 	@Autowired
+	private VariableHistoryStorageHandler historyStorageHandler;
+	@Autowired
 	private DBUserRepository userRepository;
 	@Autowired
 	private DBLoggedDialogueRepository loggedDialogueRepository;
@@ -90,7 +93,7 @@ public class Application implements ApplicationListener<ApplicationEvent> {
 	@PostConstruct
 	private void initApp() {
 		applicationManager = new ApplicationManager(dlbProperties, storageHandler,
-				userRepository, loggedDialogueRepository);
+				historyStorageHandler, userRepository, loggedDialogueRepository);
 	}
 
 	// ----------------------------------------------------------- //
