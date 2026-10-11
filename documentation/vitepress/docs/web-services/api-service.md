@@ -57,7 +57,7 @@ Variables are **scoped to the project**: the same variable name in two different
 
 * `/variables/history` — returns a user's recorded Variable changes within a project (`projectSlug`, required), **newest first** and paginated (`page`, zero-based, and `pageSize`, default 50, at most 200). Pass `variableName` to get the history of a single Variable; leave it out to get the history of all of them, interleaved.
 
-Each entry has the Variable's `name`, the `value` it was given, the `recordedTime` (epoch milliseconds) and `recordedTimeZone` (IANA name) at which the Web Service recorded the change, and the `source` of the change: `DLB_SCRIPT` (a `<<set>>` in a dialogue), `INPUT_REPLY` (a value entered in a reply's input field), `WEB_SERVICE` (one of the `/variables/set*` end-points), or `EXTERNAL` (an [External Variable Service](/web-services/external-variable-service) update).
+Each entry has an `id` (unique, and increasing in the order entries were recorded — useful to recognise an entry you've already seen when new entries shift the pages while you're paging), the Variable's `name`, the `value` it was given, the `recordedTime` (epoch milliseconds) and `recordedTimeZone` (IANA name) at which the Web Service recorded the change, and the `source` of the change: `DLB_SCRIPT` (a `<<set>>` in a dialogue), `INPUT_REPLY` (a value entered in a reply's input field), `WEB_SERVICE` (one of the `/variables/set*` end-points), or `EXTERNAL` (an [External Variable Service](/web-services/external-variable-service) update).
 
 A few things to keep in mind when reading the history:
 

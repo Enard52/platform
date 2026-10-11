@@ -111,7 +111,8 @@ class VariableHistoryIntegrationTest {
 				.andExpect(jsonPath("$[2].value").value("fine"))
 				.andExpect(jsonPath("$[0].source").value("WEB_SERVICE"))
 				.andExpect(jsonPath("$[0].recordedTimeZone").value("Europe/Lisbon"))
-				.andExpect(jsonPath("$[0].recordedTime").isNumber());
+				.andExpect(jsonPath("$[0].recordedTime").isNumber())
+				.andExpect(jsonPath("$[0].id").isNumber());
 	}
 
 	@Test

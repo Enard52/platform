@@ -17,6 +17,9 @@ and this project adheres to a single monorepo-wide version declared in `global.j
   `GET /variables/history` end-point (`projectSlug`, optional `variableName`, `page`/`pageSize`;
   newest first), gated by a new `VARIABLE_READ_OWN_HISTORY` permission held by every role.
   Each entry is stamped with the Web Service's own clock at the moment of recording.
+  Each entry also carries an `id`, increasing in recording order, so a client paging through
+  the history can de-duplicate entries when new ones shift the pages
+  ([#323](https://github.com/dialoguebranch/platform/issues/323)).
 
 ### Changed
 

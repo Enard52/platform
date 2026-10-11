@@ -165,7 +165,7 @@ public class VariableHistoryStorageHandler {
 		for (DBVariableHistory row : rows) {
 			Object value = row.getValue() == null
 					? null : JsonMapper.parse(row.getValue(), Object.class);
-			result.add(new VariableHistoryEntry(row.getName(), value, row.getRecordedTime(),
+			result.add(new VariableHistoryEntry(row.getId(), row.getName(), value, row.getRecordedTime(),
 					row.getRecordedTimeZone(), row.getSource()));
 		}
 		return result;
