@@ -49,6 +49,7 @@ import com.dialoguebranch.web.service.exception.ServiceUnavailableException;
 import com.dialoguebranch.web.service.repository.DBLoggedDialogueRepository;
 import com.dialoguebranch.web.service.repository.DBUserRepository;
 import com.dialoguebranch.web.service.storage.ExternalVariableServiceClient;
+import com.dialoguebranch.web.service.storage.VariableHistoryStorageHandler;
 import com.dialoguebranch.web.service.storage.VariableStoreDatabaseStorageHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -114,6 +115,8 @@ public class ApplicationManager {
 	 *
 	 * @param dlbProperties  the application configuration properties.
 	 * @param storageHandler the variable-store storage handler for user sessions.
+	 * @param historyStorageHandler the handler recording every variable change to the variable
+	 *                              history (#259).
 	 * @param userRepository repository used to look up or create the {@link
 	 *                        com.dialoguebranch.web.service.storage.model.DBUser} that owns each
 	 *                       user's logged dialogues.
@@ -121,11 +124,12 @@ public class ApplicationManager {
 	 */
 	public ApplicationManager(DlbProperties dlbProperties,
 							  VariableStoreDatabaseStorageHandler storageHandler,
+							  VariableHistoryStorageHandler historyStorageHandler,
 							  DBUserRepository userRepository,
 							  DBLoggedDialogueRepository loggedDialogueRepository) {
 		this.dlbProperties = dlbProperties;
-		this.userServiceFactory = new UserServiceFactory(this, storageHandler, userRepository,
-				loggedDialogueRepository);
+		this.userServiceFactory = new UserServiceFactory(this, storageHandler,
+				historyStorageHandler, userRepository, loggedDialogueRepository);
 	}
 
 	// ----------------------------------------------------------- //

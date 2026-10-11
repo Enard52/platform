@@ -28,6 +28,7 @@
 
 package com.dialoguebranch.web.service.controller;
 
+import com.dialoguebranch.exception.ParseException;
 import com.dialoguebranch.execution.Variable;
 import com.dialoguebranch.execution.VariableStore;
 import com.dialoguebranch.execution.VariableUpdatedSource;
@@ -39,12 +40,17 @@ import com.dialoguebranch.web.service.auth.DialogueBranchUserId;
 import com.dialoguebranch.web.service.auth.Permission;
 import com.dialoguebranch.web.service.controller.schema.ProjectVariableInfo;
 import com.dialoguebranch.web.service.controller.schema.SupportedVariableInfo;
+import com.dialoguebranch.web.service.controller.schema.VariableHistoryEntry;
 import com.dialoguebranch.web.service.exception.BadRequestException;
 import com.dialoguebranch.web.service.exception.DatabaseException;
 import com.dialoguebranch.web.service.exception.ErrorCode;
 import com.dialoguebranch.web.service.exception.HttpError;
 import com.dialoguebranch.web.service.exception.HttpFieldError;
+import com.dialoguebranch.web.service.exception.NotFoundException;
 import com.dialoguebranch.web.service.execution.UserService;
+import com.dialoguebranch.web.service.repository.DBProjectRepository;
+import com.dialoguebranch.web.service.storage.VariableHistoryStorageHandler;
+import com.dialoguebranch.web.service.storage.model.DBProject;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -78,6 +84,15 @@ public class VariablesController {
 
 	@Autowired
 	Application application;
+
+	@Autowired
+	VariableHistoryStorageHandler historyStorageHandler;
+
+	@Autowired
+	DBProjectRepository projectRepository;
+
+	/** Upper bound on {@code pageSize} for {@code /variables/history}, as for {@code /users}. */
+	private static final int MAX_HISTORY_PAGE_SIZE = 200;
 
 	private static final Logger logger = LoggerFactory.getLogger(VariablesController.class);
 
@@ -171,6 +186,112 @@ public class VariablesController {
 		return QueryRunner.runQuery(
 			(protocolVersion, user) -> doGetVariables(user, projectSlug, variableNameList, timeZone),
 			version, response, delegateUser, Permission.VARIABLE_READ_OWN);
+	}
+
+	// ------------------------------------------------------------------------- //
+	// -------------------- END-POINT: "/variables/history" -------------------- //
+	// ------------------------------------------------------------------------- //
+
+	/**
+	 * Retrieve the history of Dialogue Branch Variable values for a given user within a project.
+	 *
+	 * <p>Every change to a user's variables — a {@code <<set>>} in a dialogue, an input reply, a
+	 * call to {@code /variables/set|set-single}, or an update from the External Variable Service —
+	 * is recorded as one entry per affected variable. A removed variable is recorded with a
+	 * {@code null} value. Entries are returned newest first and paginated; repeated identical values
+	 * are returned as they were recorded, not deduplicated (#259).</p>
+	 *
+	 * @param request the {@link HttpServletRequest}.
+	 * @param response the {@link HttpServletResponse}.
+	 * @param version the API version to use, e.g. '1'.
+	 * @param projectSlug the slug of the project the variables are scoped to.
+	 * @param variableName the variable to return the history of, or leave empty for all variables.
+	 * @param page the zero-based page index (default {@code 0}).
+	 * @param pageSize the page size (default {@code 50}, capped at {@value
+	 *                 #MAX_HISTORY_PAGE_SIZE}).
+	 * @param delegateUser the user whose history to return (leave empty if executing for the
+	 *                     currently authenticated user).
+	 * @return the requested page of {@link VariableHistoryEntry} objects, newest first.
+	 * @throws Exception in case of a network error, internal error, or e.g. authentication error.
+	 */
+	@Operation(
+		summary = "Retrieve the history of Dialogue Branch Variable values for a given user.",
+		description = "Returns every recorded change to the given user's Dialogue Branch " +
+			"Variables in a project, newest first and paginated: one entry per variable per " +
+			"change, with the value it was given (or null if it was removed), when the Web " +
+			"Service recorded the change, and its source. Provide a variable name to return the " +
+			"history of that variable only.")
+	@RequestMapping(value="/history", method=RequestMethod.GET)
+	public List<VariableHistoryEntry> getVariableHistory(
+		HttpServletRequest request,
+		HttpServletResponse response,
+
+		@Parameter(hidden = true, description = "API Version to use, e.g. '1'")
+		@PathVariable(value = "version")
+		String version,
+
+		@Parameter(description = "The slug of the project the variables are scoped to")
+		@RequestParam(value = "projectSlug")
+		String projectSlug,
+
+		@Parameter(description = "The variable to return the history of, or leave empty for " +
+			"all variables")
+		@RequestParam(value = "variableName", required = false)
+		String variableName,
+
+		@Parameter(description = "The zero-based page index")
+		@RequestParam(value = "page", required = false, defaultValue = "0")
+		int page,
+
+		@Parameter(description = "The page size (capped at " + MAX_HISTORY_PAGE_SIZE + ")")
+		@RequestParam(value = "pageSize", required = false, defaultValue = "50")
+		int pageSize,
+
+		@Parameter(description = "The user for which to request the variable history (leave " +
+			"empty if executing for the currently authenticated user)")
+		@RequestParam(value="delegateUser", required=false)
+		String delegateUser) throws Exception {
+
+		if (version == null || version.isEmpty())
+			version = ProtocolVersion.getLatestVersion().versionName();
+
+		String logInfo = "GET /v" + version + "/variables/history?projectSlug=" + projectSlug
+				+ "&variableName=" + variableName + "&page=" + page + "&pageSize=" + pageSize;
+		if (delegateUser != null && !delegateUser.isEmpty())
+			logInfo += "&delegateUser=" + delegateUser;
+		logger.info(logInfo);
+
+		return QueryRunner.runQuery(
+			(protocolVersion, user) -> doGetVariableHistory(user, projectSlug, variableName, page,
+					pageSize),
+			version, response, delegateUser, Permission.VARIABLE_READ_OWN_HISTORY);
+	}
+
+	/**
+	 * Returns a page of the variable history of the given user within the given project.
+	 *
+	 * @param userId the Dialogue Branch user whose history to return.
+	 * @param projectSlug the slug of the project the variables are scoped to.
+	 * @param variableName the variable to return the history of, or {@code null}/empty for all.
+	 * @param page the zero-based page index (negative values are treated as {@code 0}).
+	 * @param pageSize the page size (clamped to {@code 1..}{@value #MAX_HISTORY_PAGE_SIZE}).
+	 * @return the requested page of history entries, newest first.
+	 * @throws BadRequestException in case of a malformed {@code variableName}.
+	 * @throws NotFoundException if no project with the given slug exists.
+	 * @throws ParseException if a stored value cannot be parsed.
+	 */
+	private List<VariableHistoryEntry> doGetVariableHistory(DialogueBranchUserId userId,
+			String projectSlug, String variableName, int page, int pageSize)
+			throws BadRequestException, NotFoundException, ParseException {
+		String name = variableName == null || variableName.isBlank() ? null : variableName.trim();
+		if (name != null && !name.matches("[A-Za-z]\\w*")) {
+			throw BadRequestException.withInvalidInput(new HttpFieldError("variableName",
+					"Invalid variable name: " + name));
+		}
+		DBProject project = projectRepository.findBySlug(projectSlug)
+				.orElseThrow(() -> new NotFoundException("Project not found: " + projectSlug));
+		int size = Math.max(1, Math.min(pageSize, MAX_HISTORY_PAGE_SIZE));
+		return historyStorageHandler.read(userId, project, name, Math.max(0, page), size);
 	}
 
 	// ------------------------------------------------------------------------------ //

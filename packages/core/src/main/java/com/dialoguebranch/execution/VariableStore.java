@@ -489,11 +489,13 @@ public class VariableStore {
 		 */
 		@Override
 		public void clear() {
+			List<String> clearedNames;
 			synchronized (variables) {
+				clearedNames = new ArrayList<>(variables.keySet());
 				variables.clear();
 			}
 			if (notifyObservers)
-				notifyOnChange(new VariableStoreChange.Clear(eventTime, source));
+				notifyOnChange(new VariableStoreChange.Clear(clearedNames, eventTime, source));
 		}
 
 		// ----------------------------------------------------------- //

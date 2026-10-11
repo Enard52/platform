@@ -33,6 +33,7 @@ import com.dialoguebranch.web.service.auth.DialogueBranchUserId;
 import com.dialoguebranch.web.service.exception.DatabaseException;
 import com.dialoguebranch.web.service.repository.DBLoggedDialogueRepository;
 import com.dialoguebranch.web.service.repository.DBUserRepository;
+import com.dialoguebranch.web.service.storage.VariableHistoryStorageHandler;
 import com.dialoguebranch.web.service.storage.VariableStoreDatabaseStorageHandler;
 
 import java.io.IOException;
@@ -51,6 +52,9 @@ public class UserServiceFactory {
 
 	/** The VariableStorageHandler that all created UserServices should use */
 	private final VariableStoreDatabaseStorageHandler storageHandler;
+
+	/** The handler that all created UserServices record variable history through (#259) */
+	private final VariableHistoryStorageHandler historyStorageHandler;
 
 	/** Repository used by created UserServices to look up or create their DBUser row */
 	private final DBUserRepository userRepository;
@@ -72,6 +76,9 @@ public class UserServiceFactory {
 	 * @param storageHandler the {@link VariableStoreDatabaseStorageHandler} that is passed on to
 	 *                       the {@link UserService} for reading and writing Dialogue Branch
 	 *                       variables to persistent storage.
+	 * @param historyStorageHandler the {@link VariableHistoryStorageHandler} that is passed on to
+	 *                              the {@link UserService} for recording every variable change to
+	 *                              the variable history.
 	 * @param userRepository repository passed on to created {@link UserService}s for looking up or
 	 *                        creating their {@link
 	 *                       com.dialoguebranch.web.service.storage.model.DBUser} row.
@@ -80,10 +87,12 @@ public class UserServiceFactory {
 	 */
 	public UserServiceFactory(ApplicationManager applicationManager,
 							  VariableStoreDatabaseStorageHandler storageHandler,
+							  VariableHistoryStorageHandler historyStorageHandler,
 							  DBUserRepository userRepository,
 							  DBLoggedDialogueRepository loggedDialogueRepository) {
 		this.applicationManager = applicationManager;
 		this.storageHandler = storageHandler;
+		this.historyStorageHandler = historyStorageHandler;
 		this.userRepository = userRepository;
 		this.loggedDialogueRepository = loggedDialogueRepository;
 	}
@@ -119,7 +128,7 @@ public class UserServiceFactory {
 	public UserService createUserService(DialogueBranchUserId userId, ZoneId timeZone)
 			throws DatabaseException, IOException {
 		return new UserService(userId, new User(userId.subject(), timeZone), applicationManager,
-				storageHandler, userRepository, loggedDialogueRepository);
+				storageHandler, historyStorageHandler, userRepository, loggedDialogueRepository);
 	}
 
 	/**
@@ -135,7 +144,7 @@ public class UserServiceFactory {
 	public UserService createUserService(DialogueBranchUserId userId)
 			throws IOException, DatabaseException {
 		return new UserService(userId, new User(userId.subject()), applicationManager,
-				storageHandler, userRepository, loggedDialogueRepository);
+				storageHandler, historyStorageHandler, userRepository, loggedDialogueRepository);
 	}
 
 }

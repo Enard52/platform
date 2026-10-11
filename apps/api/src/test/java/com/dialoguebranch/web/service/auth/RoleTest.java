@@ -23,7 +23,8 @@ class RoleTest {
 	void participantHasExactlyItsFourPermissions() {
 		assertEquals(
 				EnumSet.of(Permission.DIALOGUE_RUN, Permission.VARIABLE_READ_OWN,
-						Permission.VARIABLE_WRITE_OWN, Permission.LOG_READ_OWN),
+						Permission.VARIABLE_READ_OWN_HISTORY, Permission.VARIABLE_WRITE_OWN,
+						Permission.LOG_READ_OWN),
 				Role.PARTICIPANT.getPermissions());
 	}
 

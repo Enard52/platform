@@ -49,7 +49,25 @@ Using these, you can inform Dialogue Branch about Variables whose values are gen
 
 * `/variables/get` — allows you to ask for all known Variables for a user, or a space-separated list of specific Variables (via the `variableNames` parameter).
 
-Variables are **scoped to the project**: the same variable name in two different projects holds two independent values. All three end-points above therefore take a required `projectSlug` parameter identifying which project's variables to read or write.
+Variables are **scoped to the project**: the same variable name in two different projects holds two independent values. All of the end-points above therefore take a required `projectSlug` parameter identifying which project's variables to read or write.
+
+### Variable history
+
+`/variables/get` only returns a Variable's *current* value. The Web Service also keeps a history of every value a Variable has had, which you can read with:
+
+* `/variables/history` — returns a user's recorded Variable changes within a project (`projectSlug`, required), **newest first** and paginated (`page`, zero-based, and `pageSize`, default 50, at most 200). Pass `variableName` to get the history of a single Variable; leave it out to get the history of all of them, interleaved.
+
+Each entry has the Variable's `name`, the `value` it was given, the `recordedTime` (epoch milliseconds) and `recordedTimeZone` (IANA name) at which the Web Service recorded the change, and the `source` of the change: `DLB_SCRIPT` (a `<<set>>` in a dialogue), `INPUT_REPLY` (a value entered in a reply's input field), `WEB_SERVICE` (one of the `/variables/set*` end-points), or `EXTERNAL` (an [External Variable Service](/web-services/external-variable-service) update).
+
+A few things to keep in mind when reading the history:
+
+* **Every change is recorded, including repeats.** Setting a Variable to the value it already has produces a new entry. A series like `fine`, `fine`, `bad`, `fine` for a daily check-in Variable is itself meaningful data, so nothing is collapsed.
+* **A removed Variable is recorded with a `null` value.**
+* **`recordedTime` is the Web Service's own clock**, at the moment it stored the change. For an External Variable Service update, that's when the update arrived, not the external service's own timestamp for it.
+* **Re-executed nodes are recorded again.** `/dialogue/continue` and `/dialogue/back` re-execute a node, including its `<<set>>` commands, so those show up as additional entries.
+* History is kept indefinitely; there is no pruning yet.
+
+Reading history requires the `VARIABLE_READ_OWN_HISTORY` permission, which every role has. As with the other end-points, reading another user's history through `delegateUser` additionally requires the admin-only `USER_DELEGATE` permission.
 
 Another way of making sure that Dialogue Branch has up-to-date values for Variables, is by using an [External Variable Service](/web-services/external-variable-service). If your configured External Variable Service implements the optional [supported-variables end-point](/web-services/external-variable-service#reporting-supported-variables), you can query which variable names it knows how to compute for a project — useful for confirming a dialogue references the name an EVS actually supports, rather than a typo or mismatch:
 

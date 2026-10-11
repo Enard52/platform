@@ -56,6 +56,13 @@ public enum Permission {
 	/** Read the calling user's own Dialogue Branch Variables: {@code /variables/get}. */
 	VARIABLE_READ_OWN,
 
+	/**
+	 * Read the history of the calling user's own Dialogue Branch Variable values: {@code
+	 * /variables/history}. Kept separate from {@link #VARIABLE_READ_OWN} so that history access can
+	 * be restricted independently of reading current values (#259).
+	 */
+	VARIABLE_READ_OWN_HISTORY,
+
 	/** Write the calling user's own Dialogue Branch Variables: {@code /variables/set|set-single}. */
 	VARIABLE_WRITE_OWN,
 

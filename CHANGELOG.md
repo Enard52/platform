@@ -7,8 +7,24 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ## [Unreleased]
 
+### Added
+
+- Web service: Dialogue Branch Variable value history
+  ([#259](https://github.com/dialoguebranch/platform/issues/259)). Every change to a user's
+  variables (from a `<<set>>`, an input reply, `/variables/set*`, or the External Variable
+  Service) is now also appended to a new `variable_history` table (migration `V7`), one row per
+  variable per change, with `null` recording a removal. Read it with the new
+  `GET /variables/history` end-point (`projectSlug`, optional `variableName`, `page`/`pageSize`;
+  newest first), gated by a new `VARIABLE_READ_OWN_HISTORY` permission held by every role.
+  Each entry is stamped with the Web Service's own clock at the moment of recording.
+
 ### Changed
 
+- **Breaking:** Core: `VariableStoreChange.Clear` now carries the names of the variables it
+  removed (`getVariableNames()`), like `Remove` already did, so a listener can tell what a clear
+  removed ([#259](https://github.com/dialoguebranch/platform/issues/259)). Its constructors take
+  that collection as a new first argument: `Clear(Collection<String>, ZonedDateTime[,
+  VariableUpdatedSource])`.
 - **Breaking:** Core: the `Command` hierarchy (`ActionCommand`, `SetCommand`, `IfCommand`,
   `RandomCommand`, `InputSetCommand`, `InputVariableCommand` and its subclasses) is immutable
   now, with dead setters removed

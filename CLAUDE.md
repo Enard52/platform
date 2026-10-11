@@ -144,7 +144,7 @@ A Spring Boot 3 application deployed as a WAR. Key structural classes:
 Controllers (all under `/v1`):
 - `AuthController` — `/auth/logout`, `/auth/validate`
 - `DialogueController` — `/dialogue/start`, `/dialogue/progress`, `/dialogue/continue`
-- `VariablesController` — `/variables/get`, `/variables/set-single`
+- `VariablesController` — `/variables/get`, `/variables/set-single`, `/variables/history` (append-only value history, recorded by a `VariableHistoryStorageHandler` listener each `UserService` registers on its variable stores — see [#259](https://github.com/dialoguebranch/platform/issues/259))
 - `AdminController` — `/admin/list-dialogues`
 - `InfoController` — `/info/all`
 - `LogController` — dialogue log access
