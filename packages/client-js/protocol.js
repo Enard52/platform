@@ -45,3 +45,4 @@ export { ServerInfo } from './model/ServerInfo.js';
 export { Statement } from './model/Statement.js';
 export { User } from './model/User.js';
 export { Variable } from './model/Variable.js';
+export { VariableHistoryEntry } from './model/VariableHistoryEntry.js';

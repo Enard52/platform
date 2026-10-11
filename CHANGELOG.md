@@ -20,6 +20,10 @@ and this project adheres to a single monorepo-wide version declared in `global.j
   Each entry also carries an `id`, increasing in recording order, so a client paging through
   the history can de-duplicate entries when new ones shift the pages
   ([#323](https://github.com/dialoguebranch/platform/issues/323)).
+- Client JS: `DialogueBranchClient.getVariableHistory({ projectSlug, variableName, page,
+  pageSize })` reads the new `GET /variables/history` end-point, returning
+  `VariableHistoryEntry` instances (new model type, also exported from `./protocol`)
+  ([#323](https://github.com/dialoguebranch/platform/issues/323)).
 
 ### Changed
 
