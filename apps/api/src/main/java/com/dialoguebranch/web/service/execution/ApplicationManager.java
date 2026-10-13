@@ -90,6 +90,12 @@ public class ApplicationManager {
 	/** The published version number currently loaded for each project, keyed by project slug. */
 	private final Map<String, Integer> projectVersions = new LinkedHashMap<>();
 
+	/**
+	 * The source language code of each loaded project, keyed by slug: what a dialogue is started in
+	 * when the caller doesn't name a language (#333).
+	 */
+	private final Map<String, String> projectSourceLanguages = new LinkedHashMap<>();
+
 	private final DlbProperties dlbProperties;
 
 	/**
@@ -352,6 +358,31 @@ public class ApplicationManager {
 	}
 
 	/**
+	 * Returns the source language code of a loaded project.
+	 *
+	 * @param projectSlug the project's slug.
+	 * @return the source language code, or {@code null} if no such project is loaded or its source
+	 *         language is unknown.
+	 */
+	public String getSourceLanguage(String projectSlug) {
+		return projectSourceLanguages.get(projectSlug);
+	}
+
+	/**
+	 * Determines a just-loaded project's source language: from the database loader, which is
+	 * given it explicitly, or otherwise from the project's own metadata ({@code dlb-project.xml}).
+	 */
+	private static String sourceLanguageOf(ScriptLoader scriptLoader, DialogueBranchProject project) {
+		if (scriptLoader instanceof DatabasePublishedScriptLoader dbLoader)
+			return dbLoader.getSourceLanguage();
+		if (project instanceof ExecutableProject executable && executable.getMetaData() != null
+				&& executable.getMetaData().getLanguageMap() != null
+				&& executable.getMetaData().getLanguageMap().getSourceLanguage() != null)
+			return executable.getMetaData().getLanguageMap().getSourceLanguage().getCode();
+		return null;
+	}
+
+	/**
 	 * Checks whether the given {@code language} is supported (as either the source language or a
 	 * translation language) by the named project's metadata. If the project isn't loaded or has no
 	 * metadata, this is a no-op — dialogue lookup will fail with a more specific error in that case.
@@ -462,6 +493,9 @@ public class ApplicationManager {
 
 		projects.put(projectSlug, result.getProject());
 		projectVersions.put(projectSlug, versionNumber);
+		String sourceLanguage = sourceLanguageOf(scriptLoader, result.getProject());
+		if (sourceLanguage != null) projectSourceLanguages.put(projectSlug, sourceLanguage);
+		else projectSourceLanguages.remove(projectSlug);
 		logger.info("Successfully loaded Dialogue Branch project '{}' ({} dialogues).",
 				projectSlug, result.getProject().getDialogues().size());
 	}

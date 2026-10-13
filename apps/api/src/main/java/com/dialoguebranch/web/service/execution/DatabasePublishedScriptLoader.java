@@ -91,6 +91,15 @@ public class DatabasePublishedScriptLoader implements ScriptLoader {
 	 * @return the list of all available file descriptors.
 	 * @throws IOException never thrown by this implementation.
 	 */
+	/**
+	 * Returns the source language code of the project this loader loads (e.g. {@code "en"}).
+	 *
+	 * @return the source language code.
+	 */
+	public String getSourceLanguage() {
+		return sourceLanguage;
+	}
+
 	@Override
 	public List<ResourcePointer> listDialogueBranchFiles() throws IOException {
 		List<ResourcePointer> result = new ArrayList<>();

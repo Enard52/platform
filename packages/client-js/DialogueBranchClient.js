@@ -102,9 +102,9 @@ export class DialogueBranchClient extends BaseClient {
      * @param {string} [options.projectSlug] The project's slug. See {@link listDialogues}'s
      * `projectSlug` for when to omit it.
      * @param {string} [options.language] The language code to run the dialogue in (e.g. `"en"`),
-     * matching one of the project's source/translation languages. Required when talking to a
-     * Dialogue Branch Web Service directly; omit for a resolving backend the same as
-     * `projectSlug`, or to let the Web Service fall back to the project's source language.
+     * matching one of the project's source/translation languages. Omit to start the dialogue in
+     * the project's source language (or, behind a resolving backend, to let it choose, the same
+     * as `projectSlug`).
      * @param {string} [options.timeZone] The caller's IANA time zone (e.g. `"Europe/Lisbon"`),
      * used to resolve any time-of-day-dependent content. This client never infers it — pass it
      * explicitly (e.g. `Intl.DateTimeFormat().resolvedOptions().timeZone` in a browser) when
