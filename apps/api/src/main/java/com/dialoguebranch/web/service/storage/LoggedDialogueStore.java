@@ -243,6 +243,20 @@ public class LoggedDialogueStore {
 
 	private ServerLoggedDialogue toServerLoggedDialogue(DBLoggedDialogue db)
 			throws DatabaseException {
+		return toServerLoggedDialogue(db, userId.subject());
+	}
+
+	/**
+	 * Converts a stored logged dialogue to a {@link ServerLoggedDialogue}, without needing a
+	 * {@link LoggedDialogueStore} (see {@link LoggedDialogueReader}).
+	 *
+	 * @param db the stored logged dialogue, or {@code null}.
+	 * @param subject the subject of the user it belongs to.
+	 * @return the converted dialogue, or {@code null} if {@code db} is {@code null}.
+	 * @throws DatabaseException if its stored interactions cannot be parsed.
+	 */
+	static ServerLoggedDialogue toServerLoggedDialogue(DBLoggedDialogue db, String subject)
+			throws DatabaseException {
 		if (db == null) return null;
 		ServerLoggedDialogue dialogue = new ServerLoggedDialogue();
 		dialogue.setId(db.getId());
@@ -252,7 +266,7 @@ public class LoggedDialogueStore {
 		// all scoped to dbUser) — read that directly rather than db.getUser().getUsername(), which
 		// would try to lazily initialize the user association outside its fetch transaction
 		// (open-in-view is disabled) and throw LazyInitializationException.
-		dialogue.setUser(userId.subject());
+		dialogue.setUser(subject);
 		dialogue.setLocalTime(db.getLocalTime());
 		dialogue.setUtcTime(db.getUtcTime());
 		dialogue.setTimezone(db.getTimezone());
@@ -297,7 +311,7 @@ public class LoggedDialogueStore {
 		}
 	}
 
-	private List<LoggedInteraction> parseInteractions(String json) throws DatabaseException {
+	private static List<LoggedInteraction> parseInteractions(String json) throws DatabaseException {
 		try {
 			return OBJECT_MAPPER.readValue(json, new TypeReference<>() {
 			});

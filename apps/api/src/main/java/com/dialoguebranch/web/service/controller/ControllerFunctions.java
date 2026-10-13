@@ -29,6 +29,7 @@
 package com.dialoguebranch.web.service.controller;
 
 import com.dialoguebranch.exception.ExecutionException;
+import com.dialoguebranch.web.service.auth.DialogueBranchUserId;
 import com.dialoguebranch.web.service.exception.*;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -52,6 +53,19 @@ public class ControllerFunctions {
 
 	/** Utility class — not instantiated. */
 	private ControllerFunctions() { }
+
+	/**
+	 * Returns the {@code 404} for a delegated read naming a user this service doesn't know. A
+	 * delegated read never creates the user, unlike a request for the caller's own identity.
+	 *
+	 * @param userId the delegated user's identity.
+	 * @return the exception to throw.
+	 */
+	public static NotFoundException unknownDelegateUser(DialogueBranchUserId userId) {
+		return new NotFoundException(ErrorCode.UNKNOWN_USER,
+				"No Dialogue Branch user with subject '" + userId.subject()
+				+ "' is known in this realm.");
+	}
 
 	/**
 	 * Parses a given String into a {@link ZoneId} time zone object. The given {@code timeZone}

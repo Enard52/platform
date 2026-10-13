@@ -35,6 +35,7 @@ import com.dialoguebranch.web.service.auth.DialogueBranchUserId;
 import com.dialoguebranch.web.service.auth.Permission;
 import com.dialoguebranch.web.service.exception.DatabaseException;
 import com.dialoguebranch.web.service.execution.UserService;
+import com.dialoguebranch.web.service.storage.LoggedDialogueReader;
 import com.dialoguebranch.web.service.storage.ServerLoggedDialogue;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -69,6 +70,9 @@ public class LogController {
 
 	@Autowired
 	Application application;
+
+	@Autowired
+	LoggedDialogueReader loggedDialogueReader;
 
 	private static final Logger logger = LoggerFactory.getLogger(LogController.class);
 
@@ -120,8 +124,12 @@ public class LogController {
 			logInfo += "&delegateUser=" + delegateUser;
 		logger.info(logInfo);
 
+		// A delegated read goes straight to storage, creating nothing for an unknown user (#328).
 		return QueryRunner.runQuery(
-				(protocolVersion, user) -> doGetSession(user, sessionId),
+				(protocolVersion, user, delegated) -> delegated
+						? loggedDialogueReader.readSession(user, sessionId)
+								.orElseThrow(() -> ControllerFunctions.unknownDelegateUser(user))
+						: doGetSession(user, sessionId),
 				version, response, delegateUser, Permission.LOG_READ_OWN);
 	}
 
@@ -190,7 +198,10 @@ public class LogController {
 		logger.info(logInfo);
 
 		return QueryRunner.runQuery(
-				(protocolVersion, user) -> doVerifyId(user, sessionId),
+				(protocolVersion, user, delegated) -> delegated
+						? loggedDialogueReader.existsSessionId(user, sessionId)
+								.orElseThrow(() -> ControllerFunctions.unknownDelegateUser(user))
+						: doVerifyId(user, sessionId),
 				version, response, delegateUser, Permission.LOG_READ_OWN);
 
 	}
