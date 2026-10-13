@@ -48,7 +48,10 @@ public class ErrorCode {
 	/** In case the provided authentication token has expired. */
 	public static final String AUTH_TOKEN_EXPIRED = "AUTH_TOKEN_EXPIRED";
 
-	/** In case a valid refresh token is provided for an unknown user (weird...) */
+	/**
+	 * In case a request names a user this service doesn't know, e.g. a {@code delegateUser}
+	 * subject that has never been seen in the caller's realm.
+	 */
 	public static final String UNKNOWN_USER = "UNKNOWN_USER";
 
 	/** In case a required input parameter is missing, or an invalid value was provided. */

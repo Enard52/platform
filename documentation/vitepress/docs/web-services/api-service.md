@@ -75,7 +75,11 @@ Another way of making sure that Dialogue Branch has up-to-date values for Variab
 
 ## Known Users
 
-Most execution and variable end-points accept an optional `delegateUser` parameter (admin only) so an operator can act on behalf of another user; the value is that user's OIDC `subject`. To let an operator pick that user by a memorable name instead, the Web Service offers:
+Most execution and variable end-points accept an optional `delegateUser` parameter (admin only) so an operator can act on behalf of another user; the value is that user's OIDC `subject`.
+
+A delegated **read** (`/variables/get`, `/variables/history`, `/log/get-session`, `/log/verify-id`) leaves that user untouched: it reads their stored data directly, so it doesn't change anything about their active session (such as the time zone their own client last reported), and the `timeZone` parameter of `/variables/get` is ignored for it. If the named user is unknown to the service (they never made a request of their own, or the `subject` is wrong), a delegated read answers `404` with code `UNKNOWN_USER` and creates nothing, rather than returning empty results. A request for your own identity still creates your user on first contact, as before.
+
+To let an operator pick that user by a memorable name instead, the Web Service offers:
 
 * `/users` — a read-only listing of the users this service has run a dialogue for, as `{ username, subject }` entries ordered by username, with an optional `username` substring filter and pagination (`page`, `pageSize`). It requires the admin-only `USER_LIST` permission and is scoped to the caller's own token issuer (realm), matching delegation being realm-scoped. The `username` is the last value the service saw and may be stale after a rename in Keycloak; the `subject` is stable and is what to pass as `delegateUser`.
 

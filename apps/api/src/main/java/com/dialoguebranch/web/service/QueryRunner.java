@@ -100,6 +100,31 @@ public class QueryRunner {
 			HttpServletResponse response, String delegateUser,
 			Permission requiredPermission)
 			throws HttpException {
+		return runQuery((DelegationAwareQuery<T>) (version, user, delegated) ->
+				query.runQuery(version, user),
+				versionName, response, delegateUser, requiredPermission);
+	}
+
+	/**
+	 * As {@link #runQuery(AuthQuery, String, HttpServletResponse, String, Permission)}, for a query
+	 * that also needs to know whether it runs as the caller or as a delegated user (see
+	 * {@link DelegationAwareQuery}).
+	 *
+	 * @param <T> the return type of the query result.
+	 * @param query the query
+	 * @param versionName the protocol version name (see {@link ProtocolVersion})
+	 * @param response the HTTP response to add header WWW-Authenticate in case of 401 Unauthorized
+	 * @param delegateUser the "Dialogue Branch user" for which this query should be run, or ""
+	 *                     if this should be for the currently authenticated user
+	 * @param requiredPermission the permission the caller must hold
+	 * @return the query result
+	 * @throws HttpException if the query should return an HTTP error status, or (as a 500) if an
+	 *                       unexpected error occurs
+	 */
+	public static <T> T runQuery(DelegationAwareQuery<T> query, String versionName,
+			HttpServletResponse response, String delegateUser,
+			Permission requiredPermission)
+			throws HttpException {
 		ProtocolVersion version;
 		try {
 			version = ProtocolVersion.forVersionName(versionName);
@@ -135,6 +160,7 @@ public class QueryRunner {
 			// the caller's own realm (#128) — there is no cross-realm delegation, so the effective
 			// issuer is always the caller's.
 			DialogueBranchUserId runAs;
+			boolean delegated = false;
 
 			// If the request was made for "this" (authenticated) user
 			if (delegateUser == null || delegateUser.isEmpty()) {
@@ -151,6 +177,7 @@ public class QueryRunner {
 					Permission.USER_DELEGATE)) {
 				// The delegate's token is not in hand, so its username cannot be refreshed here.
 				runAs = DialogueBranchUserId.withoutUsername(callerIssuer, delegateUser);
+				delegated = true;
 
 			// Otherwise the caller is trying to act on behalf of another user without the
 			// USER_DELEGATE permission.
@@ -161,7 +188,7 @@ public class QueryRunner {
 					"'.");
 			}
 
-			return query.runQuery(version, runAs);
+			return query.runQuery(version, runAs, delegated);
 		} catch (UnauthorizedException ex) {
 			response.addHeader("WWW-Authenticate", "None");
 			throw ex;

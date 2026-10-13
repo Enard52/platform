@@ -7,6 +7,17 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ## [Unreleased]
 
+### Fixed
+
+- Web service: a delegated read (`/variables/get`, `/variables/history`, `/log/get-session`,
+  `/log/verify-id` with a `delegateUser` naming another user) no longer changes anything about
+  that user. It used to overwrite their in-memory time zone with the caller's, so their next
+  dialogue steps and variable changes were stamped in the wrong time zone
+  ([#327](https://github.com/dialoguebranch/platform/issues/327)), and it created a `users` row
+  for any subject named, including mistyped ones, while returning empty results
+  ([#328](https://github.com/dialoguebranch/platform/issues/328)). It now reads stored data
+  directly, and answers `404` with code `UNKNOWN_USER` for a user the service doesn't know.
+
 ## [0.3.0] - 2026-10-11
 
 ### Added

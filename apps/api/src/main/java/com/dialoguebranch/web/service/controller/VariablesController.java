@@ -49,7 +49,9 @@ import com.dialoguebranch.web.service.exception.HttpFieldError;
 import com.dialoguebranch.web.service.exception.NotFoundException;
 import com.dialoguebranch.web.service.execution.UserService;
 import com.dialoguebranch.web.service.repository.DBProjectRepository;
+import com.dialoguebranch.web.service.repository.DBUserRepository;
 import com.dialoguebranch.web.service.storage.VariableHistoryStorageHandler;
+import com.dialoguebranch.web.service.storage.VariableStoreDatabaseStorageHandler;
 import com.dialoguebranch.web.service.storage.model.DBProject;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -90,6 +92,12 @@ public class VariablesController {
 
 	@Autowired
 	DBProjectRepository projectRepository;
+
+	@Autowired
+	DBUserRepository userRepository;
+
+	@Autowired
+	VariableStoreDatabaseStorageHandler storageHandler;
 
 	/** Upper bound on {@code pageSize} for {@code /variables/history}, as for {@code /users}. */
 	private static final int MAX_HISTORY_PAGE_SIZE = 200;
@@ -183,8 +191,12 @@ public class VariablesController {
 
 		// QueryRunner resolves the effective user (authenticated caller or authorised delegate)
 		// and passes it as the lambda argument.
+		// A delegated read goes straight to storage: it must not change the delegated user's
+		// in-memory state (their time zone, #327) or create a user for them (#328).
 		return QueryRunner.runQuery(
-			(protocolVersion, user) -> doGetVariables(user, projectSlug, variableNameList, timeZone),
+			(protocolVersion, user, delegated) -> delegated
+					? doGetVariablesDelegated(user, projectSlug, variableNameList)
+					: doGetVariables(user, projectSlug, variableNameList, timeZone),
 			version, response, delegateUser, Permission.VARIABLE_READ_OWN);
 	}
 
@@ -262,8 +274,14 @@ public class VariablesController {
 		logger.info(logInfo);
 
 		return QueryRunner.runQuery(
-			(protocolVersion, user) -> doGetVariableHistory(user, projectSlug, variableName, page,
-					pageSize),
+			(protocolVersion, user, delegated) -> {
+				// For the caller's own identity an empty history is a normal answer; for a
+				// delegated user it would hide a wrong subject (#328).
+				if (delegated && userRepository.findByIssuerAndSubject(user.issuer(),
+						user.subject()).isEmpty())
+					throw ControllerFunctions.unknownDelegateUser(user);
+				return doGetVariableHistory(user, projectSlug, variableName, page, pageSize);
+			},
 			version, response, delegateUser, Permission.VARIABLE_READ_OWN_HISTORY);
 	}
 
@@ -420,26 +438,8 @@ public class VariablesController {
 
 		VariableStore variableStore = userService.getVariableStore(projectSlug);
 
-		variableNames = variableNames.trim();
-
-		List<String> nameList;
-		if (variableNames.isEmpty()) {
-			nameList = variableStore.getSortedVariableNames();
-		} else {
-			List<String> invalidNames = new ArrayList<>();
-			String[] nameArray = variableNames.split("\\s+");
-			for (String name : nameArray) {
-				if (!name.matches("[A-Za-z]\\w*"))
-					invalidNames.add(name);
-			}
-			if (!invalidNames.isEmpty()) {
-				HttpFieldError error = new HttpFieldError("names",
-						"Invalid variable names: " +
-								String.join(", ", invalidNames));
-				throw BadRequestException.withInvalidInput(error);
-			}
-			nameList = Arrays.asList(nameArray);
-		}
+		List<String> nameList = parseVariableNames(variableNames);
+		if (nameList == null) nameList = variableStore.getSortedVariableNames();
 
 		List<Variable> result = new ArrayList<>();
 
@@ -448,6 +448,61 @@ public class VariablesController {
 		}
 
 		return result;
+	}
+
+	/**
+	 * As {@link #doGetVariables}, for a delegated read: reads the delegated user's stored
+	 * variables directly, without going through (or creating) their {@link UserService}, so their
+	 * in-memory time zone is left alone and nothing is created for an unknown user.
+	 *
+	 * @param userId the delegated user.
+	 * @param projectSlug the slug of the project the variables are scoped to.
+	 * @param variableNames a space-separated list of variable names, or the empty string for all.
+	 * @return the requested variables, in the same shape as {@link #doGetVariables}.
+	 * @throws BadRequestException in case of a malformed variable name.
+	 * @throws NotFoundException if the project or the delegated user is unknown.
+	 * @throws ParseException if a stored value cannot be parsed.
+	 */
+	private List<Variable> doGetVariablesDelegated(DialogueBranchUserId userId, String projectSlug,
+			String variableNames) throws BadRequestException, NotFoundException, ParseException {
+		List<String> nameList = parseVariableNames(variableNames);
+		DBProject project = projectRepository.findBySlug(projectSlug)
+				.orElseThrow(() -> new NotFoundException("Project not found: " + projectSlug));
+		Map<String, Variable> byName = new TreeMap<>();
+		for (Variable variable : storageHandler.readExisting(userId, project)
+				.orElseThrow(() -> ControllerFunctions.unknownDelegateUser(userId))) {
+			byName.put(variable.getName(), variable);
+		}
+		if (nameList == null) return new ArrayList<>(byName.values());
+		List<Variable> result = new ArrayList<>();
+		for (String name : nameList) {
+			result.add(byName.get(name));
+		}
+		return result;
+	}
+
+	/**
+	 * Parses a space-separated list of variable names.
+	 *
+	 * @param variableNames the list, or the empty string.
+	 * @return the names, or {@code null} for "all variables" (an empty list).
+	 * @throws BadRequestException if any name is not a valid variable name.
+	 */
+	private static List<String> parseVariableNames(String variableNames) throws BadRequestException {
+		String trimmed = variableNames.trim();
+		if (trimmed.isEmpty()) return null;
+		String[] nameArray = trimmed.split("\\s+");
+		List<String> invalidNames = new ArrayList<>();
+		for (String name : nameArray) {
+			if (!name.matches("[A-Za-z]\\w*"))
+				invalidNames.add(name);
+		}
+		if (!invalidNames.isEmpty()) {
+			HttpFieldError error = new HttpFieldError("names",
+					"Invalid variable names: " + String.join(", ", invalidNames));
+			throw BadRequestException.withInvalidInput(error);
+		}
+		return Arrays.asList(nameArray);
 	}
 
 	// ---------------------------------------------------------------------------- //

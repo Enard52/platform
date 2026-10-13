@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -107,8 +108,32 @@ public class VariableStoreDatabaseStorageHandler {
 			throws ParseException {
 		DBUser dbUser = getOrCreateUser(id);
 		DBProject dbProject = getProject(projectSlug);
-		List<DBVariable> dbVariables = variableRepository.findByUserAndProject(dbUser, dbProject);
+		List<Variable> variables = toVariables(
+				variableRepository.findByUserAndProject(dbUser, dbProject));
+		return new VariableStore(user, variables.toArray(new Variable[0]));
+	}
 
+	/**
+	 * Reads a user's stored variables for a project without creating anything: unlike
+	 * {@link #read}, an unknown user is reported as absent rather than being created. Used for
+	 * delegated reads, which must leave the delegated user untouched (#327, #328).
+	 *
+	 * @param id the {@code (issuer, subject)} identity of the user.
+	 * @param project the project the variables are scoped to.
+	 * @return the user's variables (possibly empty), or an empty {@link Optional} if no such user
+	 *         is known.
+	 * @throws ParseException if a variable value cannot be deserialized from its stored JSON
+	 *                        representation.
+	 */
+	@Transactional(readOnly = true)
+	public Optional<List<Variable>> readExisting(DialogueBranchUserId id, DBProject project)
+			throws ParseException {
+		Optional<DBUser> dbUser = userRepository.findByIssuerAndSubject(id.issuer(), id.subject());
+		if (dbUser.isEmpty()) return Optional.empty();
+		return Optional.of(toVariables(variableRepository.findByUserAndProject(dbUser.get(), project)));
+	}
+
+	private static List<Variable> toVariables(List<DBVariable> dbVariables) throws ParseException {
 		List<Variable> variables = new ArrayList<>();
 		for (DBVariable dbVariable : dbVariables) {
 			VariableUpdatedSource source = dbVariable.getUpdatedSource() != null
@@ -120,7 +145,7 @@ public class VariableStoreDatabaseStorageHandler {
 					dbVariable.getUpdatedTimeZone(),
 					source));
 		}
-		return new VariableStore(user, variables.toArray(new Variable[0]));
+		return variables;
 	}
 
 	/**
