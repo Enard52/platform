@@ -31,11 +31,13 @@ package com.dialoguebranch.web.service.project;
 import com.dialoguebranch.web.service.Application;
 import com.dialoguebranch.web.service.execution.DatabasePublishedScriptLoader;
 import com.dialoguebranch.web.service.repository.DBPublishedDialogueRepository;
+import com.dialoguebranch.web.service.repository.DBPublishedTranslationLanguageRepository;
 import com.dialoguebranch.web.service.repository.DBPublishedTranslationRepository;
 import com.dialoguebranch.web.service.storage.model.DBProject;
 import com.dialoguebranch.web.service.storage.model.DBProjectVersion;
 import com.dialoguebranch.web.service.storage.model.DBPublishedDialogue;
 import com.dialoguebranch.web.service.storage.model.DBPublishedTranslation;
+import com.dialoguebranch.web.service.storage.model.DBPublishedTranslationLanguage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -43,6 +45,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +71,7 @@ public class ProjectLoaderService {
 	private final ProjectService projectService;
 	private final DBPublishedDialogueRepository publishedDialogueRepository;
 	private final DBPublishedTranslationRepository publishedTranslationRepository;
+	private final DBPublishedTranslationLanguageRepository publishedTranslationLanguageRepository;
 
 	/**
 	 * Creates a new {@link ProjectLoaderService}.
@@ -80,15 +84,19 @@ public class ProjectLoaderService {
 	 *                                       dialogues.
 	 * @param publishedTranslationRepository repository used to read a published dialogue's
 	 *                                       translations.
+	 * @param publishedTranslationLanguageRepository repository used to read a project version's
+	 *                                       published translation languages.
 	 */
 	public ProjectLoaderService(Application application,
 								ProjectService projectService,
 								DBPublishedDialogueRepository publishedDialogueRepository,
-								DBPublishedTranslationRepository publishedTranslationRepository) {
+								DBPublishedTranslationRepository publishedTranslationRepository,
+								DBPublishedTranslationLanguageRepository publishedTranslationLanguageRepository) {
 		this.application = application;
 		this.projectService = projectService;
 		this.publishedDialogueRepository = publishedDialogueRepository;
 		this.publishedTranslationRepository = publishedTranslationRepository;
+		this.publishedTranslationLanguageRepository = publishedTranslationLanguageRepository;
 	}
 
 	// ------------------------------------------------------------------ //
@@ -178,8 +186,16 @@ public class ProjectLoaderService {
 					.put(dialogueName, t.getContent());
 		}
 
-		DatabasePublishedScriptLoader scriptLoader =
-				new DatabasePublishedScriptLoader(sourceLanguage, scriptContents, translationContents);
+		// Every language this version was published with, including any without translations yet,
+		// so that requests in such a language are accepted (and fall back to the source content).
+		List<String> translationLanguages = new ArrayList<>();
+		for (DBPublishedTranslationLanguage language :
+				publishedTranslationLanguageRepository.findByVersion(latestVersion)) {
+			translationLanguages.add(language.getTranslationLanguageCode());
+		}
+
+		DatabasePublishedScriptLoader scriptLoader = new DatabasePublishedScriptLoader(
+				sourceLanguage, translationLanguages, scriptContents, translationContents);
 
 		application.getApplicationManager().loadProject(projectSlug, scriptLoader,
 				latestVersion.getVersionNumber());

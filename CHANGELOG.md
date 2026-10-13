@@ -20,12 +20,16 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ### Fixed
 
+- Web service: starting a dialogue in a `language` the project doesn't have (e.g. `nl` for a
+  project's `nl-NL`) still runs it in the project's source language, as before, but now logs a
+  warning naming the requested and available languages, so the mismatch no longer goes unnoticed
+  ([#335](https://github.com/dialoguebranch/platform/issues/335)). Previously the language check
+  never ran at all for projects loaded from the database.
 - Studio: the participant view (for users with only the `participant` role) failed to start its
   dialogue with a `500` for every user, because it starts it without a `language`, which
   `/dialogue/start` required ([#333](https://github.com/dialoguebranch/platform/issues/333)).
   `/dialogue/start`'s `language` is now optional: left out or empty, the dialogue starts in the
-  project's source language. Previously an empty `language` silently picked whichever language
-  version of the dialogue came first.
+  project's source language.
 - Web service: a delegated read (`/variables/get`, `/variables/history`, `/log/get-session`,
   `/log/verify-id` with a `delegateUser` naming another user) no longer changes anything about
   that user. It used to overwrite their in-memory time zone with the caller's, so their next
