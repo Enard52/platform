@@ -48,6 +48,12 @@ public class AuthenticationInfo {
 	/** Role name for an administrator. */
 	public static final String USER_ROLE_ADMIN = "admin";
 
+	/**
+	 * Role name for a supervisor: a participant who may also read other users' data, but not act
+	 * on their behalf (#326).
+	 */
+	public static final String USER_ROLE_SUPERVISOR = "supervisor";
+
 	private final String issuer;
 	private final String subject;
 	private final String username;

@@ -54,20 +54,20 @@ public enum Permission {
 	DIALOGUE_RUN,
 
 	/** Read the calling user's own Dialogue Branch Variables: {@code /variables/get}. */
-	VARIABLE_READ_OWN,
+	VARIABLE_READ_OWN(true),
 
 	/**
 	 * Read the history of the calling user's own Dialogue Branch Variable values: {@code
 	 * /variables/history}. Kept separate from {@link #VARIABLE_READ_OWN} so that history access can
 	 * be restricted independently of reading current values (#259).
 	 */
-	VARIABLE_READ_OWN_HISTORY,
+	VARIABLE_READ_OWN_HISTORY(true),
 
 	/** Write the calling user's own Dialogue Branch Variables: {@code /variables/set|set-single}. */
 	VARIABLE_WRITE_OWN,
 
 	/** Read the calling user's own dialogue logs: {@code /log/get-session|verify-id}. */
-	LOG_READ_OWN,
+	LOG_READ_OWN(true),
 
 	// -------------------- Editor scope -------------------- //
 
@@ -130,7 +130,38 @@ public enum Permission {
 	 */
 	USER_LIST,
 
-	/** Act on behalf of another Dialogue Branch user (pass a {@code delegateUser} other than self). */
-	USER_DELEGATE
+	/**
+	 * Act on behalf of another Dialogue Branch user (pass a {@code delegateUser} other than self),
+	 * on any end-point the caller may use themselves.
+	 */
+	USER_DELEGATE,
+
+	/**
+	 * Read another Dialogue Branch user's data (pass a {@code delegateUser} other than self), on
+	 * read-only end-points only: those whose required permission {@link #isReadOnly() is
+	 * read-only}. Unlike {@link #USER_DELEGATE}, it never allows acting on the other user's behalf
+	 * (#326).
+	 */
+	USER_DELEGATE_READ;
+
+	private final boolean readOnly;
+
+	Permission() {
+		this(false);
+	}
+
+	Permission(boolean readOnly) {
+		this.readOnly = readOnly;
+	}
+
+	/**
+	 * Returns whether the end-points gated by this permission only read data. A delegated request
+	 * on such an end-point needs {@link #USER_DELEGATE_READ}; on any other, {@link #USER_DELEGATE}.
+	 *
+	 * @return {@code true} for a read-only permission.
+	 */
+	public boolean isReadOnly() {
+		return readOnly;
+	}
 
 }

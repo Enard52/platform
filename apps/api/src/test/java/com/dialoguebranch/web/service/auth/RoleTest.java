@@ -56,10 +56,35 @@ class RoleTest {
 	}
 
 	@Test
-	void forIdResolvesTheThreeKnownRoles() {
+	void forIdResolvesTheFourKnownRoles() {
 		assertSame(Role.PARTICIPANT, Role.forId("participant"));
 		assertSame(Role.EDITOR, Role.forId("editor"));
 		assertSame(Role.ADMIN, Role.forId("admin"));
+		assertSame(Role.SUPERVISOR, Role.forId("supervisor"));
+	}
+
+	@Test
+	void supervisorIsExactlyParticipantPlusReadOnlyDelegation() {
+		Set<Permission> expected = EnumSet.copyOf(Role.PARTICIPANT.getPermissions());
+		expected.add(Permission.USER_DELEGATE_READ);
+		assertEquals(expected, Role.SUPERVISOR.getPermissions());
+	}
+
+	@Test
+	void supervisorMayNeverActOnSomeonesBehalfOrAdminister() {
+		assertFalse(Role.SUPERVISOR.allows(Permission.USER_DELEGATE));
+		assertFalse(Role.SUPERVISOR.allows(Permission.USER_LIST));
+		assertFalse(Role.SUPERVISOR.allows(Permission.DIALOGUE_AUTHOR));
+		assertFalse(Role.SUPERVISOR.allows(Permission.DIALOGUE_DRAFT_TEST));
+		assertFalse(Role.SUPERVISOR.allows(Permission.PROJECT_READ));
+	}
+
+	@Test
+	void onlySupervisorAndAdminMayDelegateReads() {
+		assertTrue(Role.SUPERVISOR.allows(Permission.USER_DELEGATE_READ));
+		assertTrue(Role.ADMIN.allows(Permission.USER_DELEGATE_READ));
+		assertFalse(Role.PARTICIPANT.allows(Permission.USER_DELEGATE_READ));
+		assertFalse(Role.EDITOR.allows(Permission.USER_DELEGATE_READ));
 	}
 
 	@Test
