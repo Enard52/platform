@@ -30,7 +30,6 @@ package com.dialoguebranch.web.service.controller;
 
 import com.dialoguebranch.exception.ExecutionException;
 import com.dialoguebranch.exception.ParseException;
-import com.dialoguebranch.exception.UnknownLanguageCodeException;
 import com.dialoguebranch.execution.ExecuteNodeResult;
 import com.dialoguebranch.json.JsonMapper;
 import com.dialoguebranch.model.common.ResourceType;
@@ -51,7 +50,6 @@ import com.dialoguebranch.web.service.controller.schema.DialogueListPayload;
 import com.dialoguebranch.web.service.controller.schema.OngoingDialoguePayload;
 import com.dialoguebranch.web.service.exception.BadRequestException;
 import com.dialoguebranch.web.service.exception.DatabaseException;
-import com.dialoguebranch.web.service.exception.ErrorCode;
 import com.dialoguebranch.web.service.exception.HttpException;
 import com.dialoguebranch.web.service.exception.UnauthorizedException;
 import com.dialoguebranch.web.service.execution.UserService;
@@ -265,8 +263,6 @@ public class DialogueController {
 			return DialogueMessageFactory.generateDialogueMessage(node);
 		} catch (ExecutionException e) {
 			throw ControllerFunctions.createHttpException(e);
-		} catch (UnknownLanguageCodeException e) {
-			throw new BadRequestException(ErrorCode.UNKNOWN_LANGUAGE_CODE, e.getMessage());
 		}
 	}
 

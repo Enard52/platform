@@ -61,6 +61,12 @@ public class DatabasePublishedScriptLoader implements ScriptLoader {
 	/** language → dialogueName → translation content */
 	private final Map<String, Map<String, String>> translationContents;
 
+	/**
+	 * The project's translation language codes, including any without translation content (a
+	 * language registered for the project whose dialogues aren't translated yet).
+	 */
+	private final List<String> translationLanguages;
+
 	// -------------------------------------------------------- //
 	// -------------------- Constructor(s) -------------------- //
 	// -------------------------------------------------------- //
@@ -75,9 +81,50 @@ public class DatabasePublishedScriptLoader implements ScriptLoader {
 	public DatabasePublishedScriptLoader(String sourceLanguage,
 									   Map<String, String> scriptContents,
 									   Map<String, Map<String, String>> translationContents) {
+		this(sourceLanguage, new ArrayList<>(translationContents.keySet()), scriptContents,
+				translationContents);
+	}
+
+	/**
+	 * Creates a {@link DatabasePublishedScriptLoader} from pre-built content maps, with the
+	 * project's translation languages given explicitly, so that a registered language without any
+	 * translation content yet still counts as one of the project's languages.
+	 * @param sourceLanguage       the source language code for the project (e.g. {@code "en"}).
+	 * @param translationLanguages the project's translation language codes.
+	 * @param scriptContents       map of dialogue name → script content.
+	 * @param translationContents  map of language code → (dialogue name → translation content).
+	 */
+	public DatabasePublishedScriptLoader(String sourceLanguage, List<String> translationLanguages,
+									   Map<String, String> scriptContents,
+									   Map<String, Map<String, String>> translationContents) {
 		this.sourceLanguage = sourceLanguage;
+		this.translationLanguages = List.copyOf(translationLanguages);
 		this.scriptContents = new LinkedHashMap<>(scriptContents);
 		this.translationContents = new LinkedHashMap<>(translationContents);
+	}
+
+	/**
+	 * Returns the source language code of the project this loader loads (e.g. {@code "en"}).
+	 *
+	 * @return the source language code.
+	 */
+	public String getSourceLanguage() {
+		return sourceLanguage;
+	}
+
+	/**
+	 * Returns every language code of the project this loader loads: its source language, followed
+	 * by its translation languages.
+	 *
+	 * @return the project's language codes.
+	 */
+	public List<String> getLanguageCodes() {
+		List<String> result = new ArrayList<>();
+		result.add(sourceLanguage);
+		for (String language : translationLanguages) {
+			if (!result.contains(language)) result.add(language);
+		}
+		return result;
 	}
 
 	// ------------------------------------------------------- //
@@ -91,15 +138,6 @@ public class DatabasePublishedScriptLoader implements ScriptLoader {
 	 * @return the list of all available file descriptors.
 	 * @throws IOException never thrown by this implementation.
 	 */
-	/**
-	 * Returns the source language code of the project this loader loads (e.g. {@code "en"}).
-	 *
-	 * @return the source language code.
-	 */
-	public String getSourceLanguage() {
-		return sourceLanguage;
-	}
-
 	@Override
 	public List<ResourcePointer> listDialogueBranchFiles() throws IOException {
 		List<ResourcePointer> result = new ArrayList<>();

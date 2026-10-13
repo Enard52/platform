@@ -30,7 +30,6 @@ package com.dialoguebranch.web.service.execution;
 
 import com.dialoguebranch.exception.ExecutionException;
 import com.dialoguebranch.exception.ParseException;
-import com.dialoguebranch.exception.UnknownLanguageCodeException;
 import com.dialoguebranch.execution.*;
 import com.dialoguebranch.i18n.TranslationContext;
 import com.dialoguebranch.model.execute.*;
@@ -292,13 +291,10 @@ public class UserService {
 	 * @throws DatabaseException if a database error occurs.
 	 * @throws IOException if an I/O error occurs.
 	 * @throws ExecutionException if the dialogue cannot be executed.
-	 * @throws UnknownLanguageCodeException if {@code language} is not one of the project's
-	 *                                      supported languages.
 	 */
 	public ExecuteNodeResult startDialogueSession(String projectSlug, String dialogueId,
 			String nodeId, String language, String sessionId, long sessionStartTime)
-			throws DatabaseException, IOException, ExecutionException,
-			UnknownLanguageCodeException {
+			throws DatabaseException, IOException, ExecutionException {
 
 		// This should not happen as this method should only be called by
 		// DialogueController.doStartDialogue() that already ensures a unique sessionId
@@ -309,7 +305,15 @@ public class UserService {
 		logger.info("User '{}' is starting dialogue '{}' in project '{}'",
 				dialogueBranchUser.getId(), dialogueId, projectSlug);
 
-		applicationManager.validateLanguage(projectSlug, language);
+		// An unknown language is not an error: the dialogue runs in the source language instead
+		// (see ApplicationManager.isSupportedLanguage), but the mismatch is worth noticing.
+		if (language != null && !applicationManager.isSupportedLanguage(projectSlug, language)) {
+			logger.warn("User '{}' started dialogue '{}' in language '{}', which project '{}' "
+					+ "doesn't have (it has {}); using its source language '{}'.",
+					dialogueBranchUser.getId(), dialogueId, language, projectSlug,
+					applicationManager.getLanguages(projectSlug),
+					applicationManager.getSourceLanguage(projectSlug));
+		}
 
 		ResourcePointer dialogueDescription =
 				getDialogueDescriptionFromProject(projectSlug, dialogueId, language);

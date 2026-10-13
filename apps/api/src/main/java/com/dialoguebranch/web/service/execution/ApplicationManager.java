@@ -30,7 +30,6 @@ package com.dialoguebranch.web.service.execution;
 
 import com.dialoguebranch.exception.ExecutionException;
 import com.dialoguebranch.exception.ParseException;
-import com.dialoguebranch.exception.UnknownLanguageCodeException;
 import com.dialoguebranch.execution.parser.ProjectParser;
 import com.dialoguebranch.execution.parser.ProjectParserResult;
 import com.dialoguebranch.execution.parser.ScriptLoader;
@@ -57,9 +56,12 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -95,6 +97,13 @@ public class ApplicationManager {
 	 * when the caller doesn't name a language (#333).
 	 */
 	private final Map<String, String> projectSourceLanguages = new LinkedHashMap<>();
+
+	/**
+	 * Every language code of each loaded project (source and translation languages), keyed by
+	 * slug: used to warn when a dialogue is started in a language the project doesn't have
+	 * (#335).
+	 */
+	private final Map<String, Set<String>> projectLanguages = new LinkedHashMap<>();
 
 	private final DlbProperties dlbProperties;
 
@@ -383,21 +392,46 @@ public class ApplicationManager {
 	}
 
 	/**
-	 * Checks whether the given {@code language} is supported (as either the source language or a
-	 * translation language) by the named project's metadata. If the project isn't loaded or has no
-	 * metadata, this is a no-op — dialogue lookup will fail with a more specific error in that case.
+	 * Returns whether the given {@code language} is one of the named project's languages (its
+	 * source language or one of its translation languages). A dialogue started in any other
+	 * language still runs, in the project's source language: a deliberate fallback, so a client
+	 * with a slightly different language setting still gets a dialogue rather than an error.
 	 *
 	 * @param projectSlug the project folder name / slug.
-	 * @param language    the language code to validate.
-	 * @throws UnknownLanguageCodeException if the project's metadata is present and does not list
-	 *                                       {@code language} as a supported language.
+	 * @param language    the language code to check.
+	 * @return {@code false} only if the project is loaded and {@code language} isn't one of its
+	 *         languages; {@code true} otherwise (including for a project that isn't loaded, whose
+	 *         dialogue lookup reports that more specifically).
 	 */
-	public void validateLanguage(String projectSlug, String language)
-			throws UnknownLanguageCodeException {
-		DialogueBranchProject project = projects.get(projectSlug);
-		if (project instanceof ExecutableProject execProject && execProject.getMetaData() != null) {
-			execProject.getMetaData().validateLanguageCode(language);
-		}
+	public boolean isSupportedLanguage(String projectSlug, String language) {
+		Set<String> languages = projectLanguages.get(projectSlug);
+		return languages == null || languages.contains(language);
+	}
+
+	/**
+	 * Returns the language codes of a loaded project: its source language, followed by its
+	 * translation languages.
+	 *
+	 * @param projectSlug the project's slug.
+	 * @return the project's language codes, or an empty set if no such project is loaded.
+	 */
+	public Set<String> getLanguages(String projectSlug) {
+		Set<String> languages = projectLanguages.get(projectSlug);
+		return languages == null ? Set.of() : Collections.unmodifiableSet(languages);
+	}
+
+	/**
+	 * Determines a just-loaded project's language codes: from the database loader, which is given
+	 * them explicitly (including translation languages without any translations yet); otherwise
+	 * from the project's own metadata ({@code dlb-project.xml}); otherwise from the languages its
+	 * dialogue files are found in.
+	 */
+	private static Set<String> languagesOf(ScriptLoader scriptLoader, DialogueBranchProject project) {
+		if (scriptLoader instanceof DatabasePublishedScriptLoader dbLoader)
+			return new LinkedHashSet<>(dbLoader.getLanguageCodes());
+		if (project instanceof ExecutableProject executable)
+			return new LinkedHashSet<>(executable.getLanguages());
+		return new LinkedHashSet<>();
 	}
 
 	/**
@@ -496,6 +530,7 @@ public class ApplicationManager {
 		String sourceLanguage = sourceLanguageOf(scriptLoader, result.getProject());
 		if (sourceLanguage != null) projectSourceLanguages.put(projectSlug, sourceLanguage);
 		else projectSourceLanguages.remove(projectSlug);
+		projectLanguages.put(projectSlug, languagesOf(scriptLoader, result.getProject()));
 		logger.info("Successfully loaded Dialogue Branch project '{}' ({} dialogues).",
 				projectSlug, result.getProject().getDialogues().size());
 	}

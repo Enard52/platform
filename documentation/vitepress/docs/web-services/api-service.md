@@ -23,7 +23,7 @@ After having successfully deployed the web service, you can start exploring its 
 
 The Web Service offers a `/dialogue/*` family of end-points for starting and progressing dialogues: `/dialogue/start`, `/dialogue/progress`, resuming an interrupted session (`/dialogue/continue`, `/dialogue/get-ongoing`), reverting to a previous step (`/dialogue/back`), explicitly ending a session (`/dialogue/cancel`), and (for users with the `editor` or `admin` role) listing all dialogues available in a project (`/dialogue/list-dialogues`). See the Swagger UI for the full set of parameters for each end-point.
 
-`/dialogue/start` takes an optional `language`, one of the project's source or translation language codes. Leave it out (or empty) to start the dialogue in the project's source language.
+`/dialogue/start` takes an optional `language`, one of the project's source or translation language codes. Leave it out (or empty) to start the dialogue in the project's source language. Codes are matched exactly (`nl` does not match a project's `nl-NL`). A code the project doesn't have is not an error: the dialogue runs in the project's source language instead, so a client whose language setting doesn't exactly match still gets a dialogue, and the Web Service logs a warning about the mismatch. The same applies to a translation language the project declares but hasn't translated a given dialogue into yet (without the warning). The language actually used is recorded in the dialogue log (`/log/get-session`).
 
 For a concrete, step-by-step example of calling these end-points from your own client application, see [3rd Party Client Applications](/web-services/third-party-clients).
 
