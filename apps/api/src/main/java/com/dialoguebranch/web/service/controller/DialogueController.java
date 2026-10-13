@@ -128,7 +128,8 @@ public class DialogueController {
 	 * @param version The API Version to use, e.g. '1'.
 	 * @param projectSlug Name of the project that contains the dialogue to start
 	 * @param dialogueName Name of the Dialogue Branch Dialogue to start (excluding .dlb)
-	 * @param language Language code of the language in which to start the dialogue (e.g. 'en')
+	 * @param language Language code of the language in which to start the dialogue (e.g. 'en'),
+	 *                 or {@code null}/empty for the project's source language
 	 * @param timeZone The current time zone of the user (as IANA, e.g. 'Europe/Lisbon')
 	 * @param delegateUser The user for which to execute the dialogue (leave empty if executing for
 	 *                     the currently authenticated user)
@@ -166,8 +167,8 @@ public class DialogueController {
 		String dialogueName,
 
 		@Parameter(description = "Language code of the language in which to start the dialogue " +
-				"(e.g. 'en')")
-		@RequestParam(value="language")
+				"(e.g. 'en'), or leave empty to start it in the project's source language")
+		@RequestParam(value="language", required=false)
 		String language,
 
 		@Parameter(description = "The current time zone of the user (as IANA, e.g. " +
@@ -216,7 +217,8 @@ public class DialogueController {
 	 *
 	 * @param userId the {@link String} identifier of the user for whom to start a dialogue.
 	 * @param dialogueName the name of the dialogue to start executing
-	 * @param language the language in which to start the dialogue
+	 * @param language the language in which to start the dialogue, or {@code null}/empty for the
+	 *                 project's source language
 	 * @param timeZone the timeZone of the client as one of {@code TimeZone.getAvailableIDs()}
 	 *                 (IANA Codes)
 	 * @param sessionId the (optional) identifier that should be added to the logging of dialogues
@@ -252,6 +254,10 @@ public class DialogueController {
 					"identifier has to be unique for this user ('"+userId.subject()+"').");
 			}
 		}
+
+		// No language means the project's source language (#333).
+		if (language == null || language.isBlank())
+			language = application.getApplicationManager().getSourceLanguage(projectSlug);
 
 		try {
 			ExecuteNodeResult node = userService.startDialogueSession(

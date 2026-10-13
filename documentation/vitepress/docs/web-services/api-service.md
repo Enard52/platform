@@ -23,6 +23,8 @@ After having successfully deployed the web service, you can start exploring its 
 
 The Web Service offers a `/dialogue/*` family of end-points for starting and progressing dialogues: `/dialogue/start`, `/dialogue/progress`, resuming an interrupted session (`/dialogue/continue`, `/dialogue/get-ongoing`), reverting to a previous step (`/dialogue/back`), explicitly ending a session (`/dialogue/cancel`), and (for users with the `editor` or `admin` role) listing all dialogues available in a project (`/dialogue/list-dialogues`). See the Swagger UI for the full set of parameters for each end-point.
 
+`/dialogue/start` takes an optional `language`, one of the project's source or translation language codes. Leave it out (or empty) to start the dialogue in the project's source language.
+
 For a concrete, step-by-step example of calling these end-points from your own client application, see [3rd Party Client Applications](/web-services/third-party-clients).
 
 ## Working with Variables

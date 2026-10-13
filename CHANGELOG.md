@@ -20,6 +20,12 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ### Fixed
 
+- Studio: the participant view (for users with only the `participant` role) failed to start its
+  dialogue with a `500` for every user, because it starts it without a `language`, which
+  `/dialogue/start` required ([#333](https://github.com/dialoguebranch/platform/issues/333)).
+  `/dialogue/start`'s `language` is now optional: left out or empty, the dialogue starts in the
+  project's source language. Previously an empty `language` silently picked whichever language
+  version of the dialogue came first.
 - Web service: a delegated read (`/variables/get`, `/variables/history`, `/log/get-session`,
   `/log/verify-id` with a `delegateUser` naming another user) no longer changes anything about
   that user. It used to overwrite their in-memory time zone with the caller's, so their next
