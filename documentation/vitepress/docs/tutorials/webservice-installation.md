@@ -68,7 +68,7 @@ The bundled Keycloak realm import does not create any users by default, so befor
 2. Make sure the `dialoguebranch` realm is selected (top-left realm switcher).
 3. Under **Users**, click **Add user**, give it a username (e.g. `testuser`), and save.
 4. On the new user's **Credentials** tab, set a password (turn **Temporary** off, so you're not forced to change it on first login).
-5. On the **Role mapping** tab, click **Assign role**, switch the filter to **Filter by clients**, and assign one or more of the `dlb-web-service` client roles: `participant`, `editor`, `admin` (see [Authentication](/web-services/authentication) for what each role permits — for exploring the full API, assign `admin`).
+5. On the **Role mapping** tab, click **Assign role**, switch the filter to **Filter by clients**, and assign one or more of the `dlb-web-service` client roles: `participant`, `editor`, `admin`, `supervisor` (see [Authentication](/web-services/authentication) for what each role permits — for exploring the full API, assign `admin`).
 
 ## Verifying the Installation
 

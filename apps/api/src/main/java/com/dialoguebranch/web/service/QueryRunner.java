@@ -67,6 +67,21 @@ public class QueryRunner {
 	private QueryRunner() { }
 
 	/**
+	 * Returns whether {@code caller} may run an end-point requiring {@code requiredPermission} on
+	 * behalf of another user: {@link Permission#USER_DELEGATE} allows it on any end-point,
+	 * {@link Permission#USER_DELEGATE_READ} only on a {@link Permission#isReadOnly() read-only} one.
+	 *
+	 * @param caller the authenticated caller.
+	 * @param requiredPermission the permission the end-point requires.
+	 * @return whether the delegation is allowed.
+	 */
+	static boolean mayDelegate(AuthenticationInfo caller, Permission requiredPermission) {
+		return AuthorizationService.hasPermission(caller, Permission.USER_DELEGATE)
+				|| (requiredPermission.isReadOnly()
+					&& AuthorizationService.hasPermission(caller, Permission.USER_DELEGATE_READ));
+	}
+
+	/**
 	 * Sets the Keycloak client id whose {@code resource_access} entry {@link #authenticationInfoFromKeycloakJwt}
 	 * reads the caller's roles from. Called by {@link SecurityConfig} at startup with
 	 * {@code dlb.auth.keycloak.client-id}.
@@ -172,18 +187,20 @@ public class QueryRunner {
 				runAs = new DialogueBranchUserId(callerIssuer, callerSubject,
 						authenticationInfo.getUsername());
 
-			// If "this" user is allowed to act on behalf of another user in the same realm
-			} else if (AuthorizationService.hasPermission(authenticationInfo,
-					Permission.USER_DELEGATE)) {
+			// If "this" user is allowed to act on behalf of another user in the same realm: with
+			// USER_DELEGATE on any end-point, or with USER_DELEGATE_READ on a read-only one (#326)
+			} else if (mayDelegate(authenticationInfo, requiredPermission)) {
 				// The delegate's token is not in hand, so its username cannot be refreshed here.
 				runAs = DialogueBranchUserId.withoutUsername(callerIssuer, delegateUser);
 				delegated = true;
 
 			// Otherwise the caller is trying to act on behalf of another user without the
-			// USER_DELEGATE permission.
+			// delegation permission this end-point needs.
 			} else {
+				Permission needed = requiredPermission.isReadOnly()
+						? Permission.USER_DELEGATE_READ : Permission.USER_DELEGATE;
 				throw new ForbiddenException(ErrorCode.INSUFFICIENT_PRIVILEGES,
-					"User '" + callerSubject + "' does not have the '" + Permission.USER_DELEGATE +
+					"User '" + callerSubject + "' does not have the '" + needed +
 					"' permission required to run a query for delegate subject '" + delegateUser +
 					"'.");
 			}

@@ -38,10 +38,11 @@ import java.util.Set;
  * {@link AuthenticationInfo#getRoles()}); the union of the matching roles' permissions is what
  * {@link AuthorizationService} tests an operation against.
  *
- * <p>The three roles are fixed constants, defined once here as the single place that decides what
+ * <p>The four roles are fixed constants, defined once here as the single place that decides what
  * each Keycloak role may do. They are layered: {@link #EDITOR} is {@link #PARTICIPANT} plus the
  * authoring permissions, and {@link #ADMIN} is {@link #EDITOR} plus the project-lifecycle and
  * service-administration permissions (so {@code ADMIN} currently grants every {@link Permission}).
+ * {@link #SUPERVISOR} sits beside that chain: {@link #PARTICIPANT} plus read-only delegation.
  * Making roles configurable, or letting an administrator define new ones, is deliberately left for
  * later — see <a href="https://github.com/dialoguebranch/platform/issues/99">#99</a>.</p>
  *
@@ -58,7 +59,17 @@ public final class Role {
 	/** Everything {@link #EDITOR} may do, plus project lifecycle, publishing and service administration. */
 	public static final Role ADMIN;
 
-	/** All defined roles, in ascending order of privilege. */
+	/**
+	 * Everything {@link #PARTICIPANT} may do, plus reading other users' data through a
+	 * {@code delegateUser} on read-only end-points ({@link Permission#USER_DELEGATE_READ}). It may
+	 * never act on their behalf, and has no authoring or administration rights (#326).
+	 */
+	public static final Role SUPERVISOR;
+
+	/**
+	 * All defined roles. {@link #PARTICIPANT}, {@link #EDITOR} and {@link #ADMIN} each build on the
+	 * previous one; {@link #SUPERVISOR} builds on {@link #PARTICIPANT} alone.
+	 */
 	private static final List<Role> ALL;
 
 	static {
@@ -88,12 +99,17 @@ public final class Role {
 				Permission.PUBLISH_CREATE,
 				Permission.SERVICE_INFO_TECHNICAL,
 				Permission.USER_LIST,
-				Permission.USER_DELEGATE));
+				Permission.USER_DELEGATE,
+				Permission.USER_DELEGATE_READ));
+
+		EnumSet<Permission> supervisor = EnumSet.copyOf(participant);
+		supervisor.add(Permission.USER_DELEGATE_READ);
 
 		PARTICIPANT = new Role(AuthenticationInfo.USER_ROLE_PARTICIPANT, participant);
 		EDITOR = new Role(AuthenticationInfo.USER_ROLE_EDITOR, editor);
 		ADMIN = new Role(AuthenticationInfo.USER_ROLE_ADMIN, admin);
-		ALL = List.of(PARTICIPANT, EDITOR, ADMIN);
+		SUPERVISOR = new Role(AuthenticationInfo.USER_ROLE_SUPERVISOR, supervisor);
+		ALL = List.of(PARTICIPANT, EDITOR, ADMIN, SUPERVISOR);
 	}
 
 	private final String roleId;

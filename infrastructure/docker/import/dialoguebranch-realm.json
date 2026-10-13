@@ -315,6 +315,15 @@
           "attributes": {}
         },
         {
+          "id": "89253566-4590-4bdc-a4ab-82d1b7969103",
+          "name": "supervisor",
+          "description": "A user with the \"supervisor\" role can do everything a participant can, and read (never change) other users' variables, variable history and dialogue logs through the Web Service.",
+          "composite": false,
+          "clientRole": true,
+          "containerId": "87183653-70f2-4b9d-9805-c837151764bc",
+          "attributes": {}
+        },
+        {
           "id": "fc2ec153-9845-480d-b4cf-bf8c5fd6855e",
           "name": "editor",
           "description": "A user with the \"editor\" role can execute and modify dialogue scripts through the Web Service.",

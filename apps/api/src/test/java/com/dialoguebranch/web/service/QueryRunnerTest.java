@@ -18,8 +18,10 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests {@link QueryRunner#runQuery}'s handling of the authenticated caller: the guard that turns a
@@ -108,6 +110,75 @@ class QueryRunnerTest {
 				keycloakJwt("admin"));
 
 		assertArrayEquals(new String[] {"admin"}, info.getRoles());
+	}
+
+	// -------------------- read-only delegation (#326) -------------------- //
+
+	private static void callerWithRoles(String... roles) {
+		SecurityContextHolder.getContext().setAuthentication(
+				new JwtAuthenticationToken(keycloakJwt(roles)));
+	}
+
+	private static String runDelegated(Permission endPointPermission) throws Exception {
+		return QueryRunner.runQuery(
+				(DelegationAwareQuery<String>) (version, user, delegated) ->
+						user.subject() + (delegated ? " (delegated)" : ""),
+				"1", new MockHttpServletResponse(), "bob-sub", endPointPermission);
+	}
+
+	@Test
+	void aSupervisorMayReadAnotherUsersDataOnEveryReadOnlyEndPoint() throws Exception {
+		callerWithRoles("supervisor");
+		for (Permission read : new Permission[] {Permission.VARIABLE_READ_OWN,
+				Permission.VARIABLE_READ_OWN_HISTORY, Permission.LOG_READ_OWN}) {
+			assertEquals("bob-sub (delegated)", runDelegated(read), read.name());
+		}
+	}
+
+	@Test
+	void aSupervisorMayNotActOnAnotherUsersBehalf() {
+		callerWithRoles("supervisor");
+		for (Permission write : new Permission[] {Permission.VARIABLE_WRITE_OWN,
+				Permission.DIALOGUE_RUN}) {
+			ForbiddenException ex = assertThrows(ForbiddenException.class, () -> runDelegated(write));
+			assertTrue(ex.getMessage().contains("'USER_DELEGATE'"), ex.getMessage());
+		}
+	}
+
+	@Test
+	void aParticipantMayNotReadAnotherUsersDataAndIsToldWhichPermissionIsMissing() {
+		callerWithRoles("participant");
+		ForbiddenException ex = assertThrows(ForbiddenException.class,
+				() -> runDelegated(Permission.VARIABLE_READ_OWN));
+		assertTrue(ex.getMessage().contains("'USER_DELEGATE_READ'"), ex.getMessage());
+	}
+
+	@Test
+	void anAdminMayStillReadAndActOnAnotherUsersBehalf() throws Exception {
+		callerWithRoles("admin");
+		assertEquals("bob-sub (delegated)", runDelegated(Permission.VARIABLE_READ_OWN));
+		assertEquals("bob-sub (delegated)", runDelegated(Permission.VARIABLE_WRITE_OWN));
+		assertEquals("bob-sub (delegated)", runDelegated(Permission.DIALOGUE_RUN));
+	}
+
+	@Test
+	void namingYourselfIsNeverDelegationWhateverTheRole() throws Exception {
+		callerWithRoles("participant");
+		String result = QueryRunner.runQuery(
+				(DelegationAwareQuery<String>) (version, user, delegated) ->
+						user.subject() + (delegated ? " (delegated)" : ""),
+				"1", new MockHttpServletResponse(), "alice-sub", Permission.VARIABLE_WRITE_OWN);
+		assertEquals("alice-sub", result);
+	}
+
+	@Test
+	void mayDelegateCombinesTheTwoDelegationPermissionsWithTheEndPointsReadOnlyMarker() {
+		AuthenticationInfo supervisor = QueryRunner.authenticationInfoFromKeycloakJwt(
+				keycloakJwt("supervisor"));
+		assertTrue(QueryRunner.mayDelegate(supervisor, Permission.VARIABLE_READ_OWN_HISTORY));
+		assertFalse(QueryRunner.mayDelegate(supervisor, Permission.VARIABLE_WRITE_OWN));
+		// The role check itself still applies separately: a supervisor holds no PROJECT_CREATE.
+		assertFalse(QueryRunner.mayDelegate(supervisor, Permission.PROJECT_CREATE));
 	}
 
 	private static Jwt keycloakJwt(String... roles) {

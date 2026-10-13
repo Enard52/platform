@@ -7,6 +7,17 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ## [Unreleased]
 
+### Added
+
+- Web service: a new `supervisor` role
+  ([#326](https://github.com/dialoguebranch/platform/issues/326)) for users who follow other
+  users' progress without administering anything. It has everything `participant` has, plus a new
+  `USER_DELEGATE_READ` permission: reading another user's variables, variable history and dialogue
+  logs through `delegateUser` on the read-only end-points (`/variables/get`, `/variables/history`,
+  `/log/get-session`, `/log/verify-id`). It can never act on another user's behalf; that still
+  requires `USER_DELEGATE` (`admin`), which now also includes `USER_DELEGATE_READ`. The bundled
+  Keycloak realm import gains the `supervisor` client role.
+
 ### Fixed
 
 - Web service: a delegated read (`/variables/get`, `/variables/history`, `/log/get-session`,

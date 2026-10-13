@@ -22,7 +22,7 @@ All API end-points (other than `/info/all` and a few infrastructure end-points) 
 * After a successful login, Swagger stores the resulting access token and automatically attaches it to every request you make from this point on — click **Close** to return to the API list.
 
 ::: info Note
-Which end-points you're allowed to call, and whether you can specify a `delegateUser` parameter to act on behalf of another user, depends on which of the `participant`/`editor`/`admin` roles are assigned to your test user — see [Authentication](/web-services/authentication).
+Which end-points you're allowed to call, and whether you can specify a `delegateUser` parameter to act on behalf of another user, depends on which of the `participant`/`editor`/`admin`/`supervisor` roles are assigned to your test user — see [Authentication](/web-services/authentication).
 :::
 
 ### Summary of API End-Points
