@@ -32,6 +32,7 @@ import com.dialoguebranch.exception.ParseException;
 import com.dialoguebranch.execution.parser.DialogueBranchParser;
 import com.dialoguebranch.execution.parser.DialogueBranchScriptSplitter;
 import com.dialoguebranch.execution.parser.DialogueBranchScriptSplitter.RawNode;
+import com.dialoguebranch.execution.parser.DialogueBranchScriptSplitter.Script;
 import com.dialoguebranch.execution.parser.ParserResult;
 import com.dialoguebranch.i18n.SourceTranslatable;
 import com.dialoguebranch.i18n.Translatable;
@@ -160,8 +161,9 @@ public class DraftDialogueService {
 
 	/**
 	 * Creates a new draft dialogue in {@code project} named {@code name}, populated by splitting
-	 * the given full {@code .dlb} script {@code content} into nodes with {@link
-	 * DialogueBranchScriptSplitter} and creating a {@link DBDraftNode} for each. Used to seed a
+	 * the given full {@code .dlb} script {@code content} into its preamble and nodes with {@link
+	 * DialogueBranchScriptSplitter}, keeping the preamble on the dialogue and creating a {@link
+	 * DBDraftNode} for each node. Used to seed a
 	 * project's initial drafts directly from its {@code .dlb} source files (see {@code
 	 * ProjectSeedService}), before they're published for the first time.
 	 *
@@ -175,7 +177,8 @@ public class DraftDialogueService {
 	@Transactional
 	public DBDraftDialogue createDialogueFromScript(DBProject project, String name,
 													String content) {
-		List<RawNode> rawNodes = DialogueBranchScriptSplitter.split(content);
+		Script script = DialogueBranchScriptSplitter.split(content);
+		List<RawNode> rawNodes = script.nodes();
 		for (RawNode rawNode : rawNodes) {
 			if (!rawNode.hasBody()) {
 				throw new IllegalArgumentException("Dialogue '" + name + "', line " +
@@ -189,6 +192,10 @@ public class DraftDialogueService {
 			}
 		}
 		DBDraftDialogue dialogue = createDialogue(project, name);
+		if (!script.preamble().isEmpty()) {
+			dialogue.setPreamble(script.preamble());
+			dialogueRepository.save(dialogue);
+		}
 		Instant now = Instant.now();
 		int index = 0;
 		for (RawNode rawNode : rawNodes) {
@@ -1128,8 +1135,9 @@ public class DraftDialogueService {
 
 	/**
 	 * Reconstructs the full {@code .dlb} script content for the given draft dialogue by joining
-	 * its nodes (ordered by creation time) with {@link DialogueBranchScriptSplitter#join}, the
-	 * inverse of how {@link #createDialogueFromScript} splits a script.
+	 * its preamble and nodes (ordered by creation time) with {@link
+	 * DialogueBranchScriptSplitter#join}, the inverse of how {@link #createDialogueFromScript}
+	 * splits a script.
 	 *
 	 * @param dialogue the draft dialogue to reconstruct.
 	 * @return the reconstructed {@code .dlb} script as a string.
@@ -1139,7 +1147,7 @@ public class DraftDialogueService {
 		for (DBDraftNode node : nodeRepository.findByDraftDialogueOrderByCreatedAt(dialogue)) {
 			rawNodes.add(new RawNode(node.getHeader(), Objects.requireNonNullElse(node.getBody(), ""), 0));
 		}
-		return DialogueBranchScriptSplitter.join(rawNodes);
+		return DialogueBranchScriptSplitter.join(new Script(dialogue.getPreamble(), rawNodes));
 	}
 
 	/**

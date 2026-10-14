@@ -467,6 +467,32 @@ class DraftDialogueServiceTest {
 	}
 
 	@Test
+	void createDialogueFromScriptKeepsThePreambleOnTheDialogue() {
+		DBProject project = projectService.createProject("from-script-preamble", "Preamble", "", "en", "English");
+		String script = "// What this dialogue is for.\n\n// Second line.\ntitle: Start\nspeaker: Narrator\n---\nHi.\n===\n";
+
+		DBDraftDialogue dialogue = draftDialogueService.createDialogueFromScript(project, "main", script);
+
+		assertEquals("// What this dialogue is for.\n// Second line.", dialogue.getPreamble());
+		assertEquals("title: Start\nspeaker: Narrator",
+				draftDialogueService.listNodes(dialogue).get(0).getHeader());
+		assertEquals("// What this dialogue is for.\n// Second line.\n"
+				+ "title: Start\nspeaker: Narrator\n---\nHi.\n===\n",
+				draftDialogueService.reconstructScript(dialogue));
+	}
+
+	@Test
+	void dialogueWithoutPreambleHasAnEmptyOne() {
+		DBProject project = projectService.createProject("no-preamble", "No Preamble", "", "en", "English");
+		DBDraftDialogue created = draftDialogueService.createDialogue(project, "main");
+		DBDraftDialogue fromScript = draftDialogueService.createDialogueFromScript(project, "other",
+				"title: Start\n---\nHi.\n===\n");
+
+		assertEquals("", created.getPreamble());
+		assertEquals("", fromScript.getPreamble());
+	}
+
+	@Test
 	void reconstructScriptWritesTheStandardFormat() {
 		DBProject project = projectService.createProject("reconstruct-format", "Format", "", "en", "English");
 		DBDraftDialogue dialogue = draftDialogueService.createDialogue(project, "main");

@@ -112,6 +112,14 @@ public class DBDraftDialogue {
 	private String previousPublishedName;
 
 	/**
+	 * The comment lines at the very start of this dialogue's script, before its first node, joined
+	 * with LF (#345). Written back at the top of the script when it is reconstructed. {@code null}
+	 * or empty if there are none.
+	 */
+	@Column(name = "preamble", columnDefinition = "TEXT")
+	private String preamble;
+
+	/**
 	 * Creates an empty instance of {@link DBDraftDialogue}.
 	 */
 	public DBDraftDialogue() {
@@ -316,6 +324,25 @@ public class DBDraftDialogue {
 	 */
 	public void setPreviousPublishedName(String previousPublishedName) {
 		this.previousPublishedName = previousPublishedName;
+	}
+
+	/**
+	 * Returns this dialogue's preamble: the comment lines before its first node.
+	 *
+	 * @return the preamble, or an empty string if there is none.
+	 */
+	public String getPreamble() {
+		return preamble == null ? "" : preamble;
+	}
+
+	/**
+	 * Sets this dialogue's preamble.
+	 *
+	 * @param preamble the comment lines before the first node, joined with LF, or an empty string
+	 *                 for none.
+	 */
+	public void setPreamble(String preamble) {
+		this.preamble = preamble;
 	}
 
 }

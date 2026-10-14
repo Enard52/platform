@@ -52,6 +52,7 @@ import java.util.Set;
 public class Dialogue {
 
 	private @Nullable String dialogueName;
+	private String preamble = "";
 	private Map<String, Node> nodes = new LinkedHashMap<>(); // map from lower-case node titles to nodes
 	private Set<String> speakers = new HashSet<>();
 	private Set<String> variablesNeeded = new HashSet<>();
@@ -86,6 +87,7 @@ public class Dialogue {
 	 */
 	public Dialogue(Dialogue other) {
 		dialogueName = other.dialogueName;
+		preamble = other.preamble;
 		for (String key : other.nodes.keySet()) {
 			nodes.put(key, new Node(other.nodes.get(key)));
 		}
@@ -107,6 +109,17 @@ public class Dialogue {
 	 */
 	public @Nullable String getDialogueName() {
 		return this.dialogueName;
+	}
+
+	/**
+	 * Returns the preamble of this {@link Dialogue}: the comment lines at the very start of its
+	 * script, before the first node, about the script as a whole. Its blank lines are left out;
+	 * its comment lines are kept exactly, joined with LF.
+	 *
+	 * @return the preamble, or an empty string if there is none.
+	 */
+	public String getPreamble() {
+		return this.preamble;
 	}
 
 	/**
@@ -230,6 +243,15 @@ public class Dialogue {
 	 */
 	public void setDialogueName(String dialogueName) {
 		this.dialogueName = dialogueName;
+	}
+
+	/**
+	 * Sets the preamble of this {@link Dialogue} (see {@link #getPreamble()}).
+	 *
+	 * @param preamble the preamble, or an empty string for none.
+	 */
+	public void setPreamble(String preamble) {
+		this.preamble = preamble;
 	}
 
 	// --------------------------------------------------- //
