@@ -7,6 +7,25 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ## [Unreleased]
 
+### Added
+
+- Core: `DialogueBranchScriptSplitter`, which splits the text of a `.dlb` script into its raw
+  nodes (header and body text) and joins them back, by the same separator rules as
+  `DialogueBranchParser` ([#342](https://github.com/dialoguebranch/platform/issues/342)). It
+  accepts any text and never fails; deciding whether the result is a usable dialogue is left to
+  the caller.
+
+### Fixed
+
+- Web service: importing a project (and seeding one at startup) could store a valid `.dlb` script
+  wrongly as draft nodes, without any error
+  ([#342](https://github.com/dialoguebranch/platform/issues/342)). Scripts with Windows (CRLF)
+  line endings, or with whitespace or a `//` comment on a `---` or `===` line, came out with no
+  nodes at all, or with several nodes merged into one; a script without a final newline kept a
+  stray `===` in its last node. Draft nodes are now split by the same rules the parser uses, and a
+  script that still can't be stored as draft nodes (a node without a `---` line or a `title`) is
+  rejected with the dialogue name and line number, instead of nodes being dropped silently.
+
 ## [0.4.0] - 2026-10-13
 
 ### Added

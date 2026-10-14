@@ -416,7 +416,7 @@ class DraftDialogueServiceTest {
 	}
 
 	@Test
-	void createDialogueFromScriptSplitsNodesAndSkipsUntitledBlocks() {
+	void createDialogueFromScriptSplitsNodes() {
 		DBProject project = projectService.createProject("from-script-test", "From Script Test", "", "en", "English");
 		String script = "title: Start\nspeaker: Narrator\nposition: 0,0\n---\n[[Continue|End]]\n===\n"
 				+ "title: End\nspeaker: Narrator\nposition: 100,0\n---\n\n===\n";
@@ -429,6 +429,52 @@ class DraftDialogueServiceTest {
 		assertEquals("Start", nodes.get(0).getTitle());
 		assertTrue(nodes.get(0).getBody().contains("[[Continue|End]]"));
 		assertEquals("End", nodes.get(1).getTitle());
+	}
+
+	@Test
+	void createDialogueFromScriptFollowsTheLanguageNotTheStoredFormat() {
+		DBProject project = projectService.createProject("from-script-messy", "Messy", "", "en", "English");
+		String script = "title: Start\r\nspeaker: Narrator\r\n--- // body\r\nHello.\r\n=== // end\r\n"
+				+ "\r\ntitle: Second\r\nspeaker: Narrator\r\n---  \r\nBye.\r\n===";
+
+		DBDraftDialogue dialogue =
+				draftDialogueService.createDialogueFromScript(project, "messy", script);
+
+		List<DBDraftNode> nodes = draftDialogueService.listNodes(dialogue);
+		assertEquals(2, nodes.size());
+		assertEquals("title: Start\nspeaker: Narrator", nodes.get(0).getHeader());
+		assertEquals("Hello.", nodes.get(0).getBody());
+		assertEquals("title: Second\nspeaker: Narrator", nodes.get(1).getHeader());
+		assertEquals("Bye.", nodes.get(1).getBody());
+	}
+
+	@Test
+	void createDialogueFromScriptRejectsNodesItCannotStore() {
+		DBProject project = projectService.createProject("from-script-reject", "Reject", "", "en", "English");
+
+		IllegalArgumentException noTitle = assertThrows(IllegalArgumentException.class,
+				() -> draftDialogueService.createDialogueFromScript(project, "no-title",
+						"title: Start\n---\nHi.\n===\nspeaker: Narrator\n---\nBye.\n===\n"));
+		assertTrue(noTitle.getMessage().contains("line 5"), noTitle.getMessage());
+
+		IllegalArgumentException noSeparator = assertThrows(IllegalArgumentException.class,
+				() -> draftDialogueService.createDialogueFromScript(project, "no-separator",
+						"Shall I compare thee to a summer's day?\n"));
+		assertTrue(noSeparator.getMessage().contains("line 1"), noSeparator.getMessage());
+
+		assertTrue(draftDialogueService.findDialogue(project, "no-title").isEmpty());
+		assertTrue(draftDialogueService.findDialogue(project, "no-separator").isEmpty());
+	}
+
+	@Test
+	void reconstructScriptWritesTheStandardFormat() {
+		DBProject project = projectService.createProject("reconstruct-format", "Format", "", "en", "English");
+		DBDraftDialogue dialogue = draftDialogueService.createDialogue(project, "main");
+		draftDialogueService.createNode(dialogue, "Start", "title: Start\nposition: 0,0", "Hello.");
+		draftDialogueService.createNode(dialogue, "Second", "title: Second", "");
+
+		assertEquals("title: Start\nposition: 0,0\n---\nHello.\n===\ntitle: Second\n---\n\n===\n",
+				draftDialogueService.reconstructScript(dialogue));
 	}
 
 	@Test

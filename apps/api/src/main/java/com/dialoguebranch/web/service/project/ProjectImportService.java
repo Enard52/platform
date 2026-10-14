@@ -175,7 +175,7 @@ public class ProjectImportService {
 			} catch (IOException e) {
 				throw new InternalServerErrorException(
 						"Failed to import project: " + e.getMessage());
-			} catch (IllegalStateException e) {
+			} catch (IllegalStateException | IllegalArgumentException e) {
 				throw new BadRequestException(e.getMessage());
 			}
 		} finally {

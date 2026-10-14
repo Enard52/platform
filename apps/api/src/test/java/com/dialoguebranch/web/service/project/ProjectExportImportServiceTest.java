@@ -8,6 +8,8 @@ import com.dialoguebranch.model.execute.ResourcePointer;
 import com.dialoguebranch.web.service.exception.BadRequestException;
 import com.dialoguebranch.web.service.exception.ConflictException;
 import com.dialoguebranch.web.service.execution.SpringResourceScriptLoader;
+import com.dialoguebranch.web.service.storage.model.DBDraftDialogue;
+import com.dialoguebranch.web.service.storage.model.DBDraftNode;
 import com.dialoguebranch.web.service.storage.model.DBDraftTranslationLanguage;
 import com.dialoguebranch.web.service.storage.model.DBProject;
 import com.dialoguebranch.web.service.storage.model.DBProjectVersion;
@@ -226,6 +228,34 @@ class ProjectExportImportServiceTest {
 		MockMultipartFile upload = zipMultipartFile(archive, "no-marker.zip");
 
 		assertThrows(BadRequestException.class, () -> projectImportService.importProject(upload));
+	}
+
+	@Test
+	void importStoresHandWrittenScriptsAsCorrectDraftNodes() throws Exception {
+		String xml = """
+				<?xml version="1.0" encoding="UTF-8"?>
+				<dlb-project name="Hand Written" slug="import-hand-written" version="1">
+				  <description>Scripts as people write them.</description>
+				  <language-map>
+					<source-language name="English" code="en"/>
+				  </language-map>
+				</dlb-project>
+				""";
+		String script = "title: Start\r\nspeaker: Narrator\r\n--- \r\nHello.\r\n[[Next|Second]]\r\n"
+				+ "=== // end of Start\r\n\r\ntitle: Second\r\nspeaker: Narrator\r\n---\r\nBye.\r\n===";
+		byte[] archive = buildZip(new String[] {"dlb-project.xml", xml},
+				new String[] {"en/main.dlb", script});
+
+		DBProject imported = projectImportService.importProject(
+				zipMultipartFile(archive, "hand-written.zip"));
+
+		DBDraftDialogue dialogue = draftDialogueService.findDialogue(imported, "main").orElseThrow();
+		List<DBDraftNode> nodes = draftDialogueService.listNodes(dialogue);
+		assertEquals(2, nodes.size());
+		assertEquals("Start", nodes.get(0).getTitle());
+		assertEquals("Hello.\n[[Next|Second]]", nodes.get(0).getBody());
+		assertEquals("Second", nodes.get(1).getTitle());
+		assertEquals("Bye.", nodes.get(1).getBody());
 	}
 
 	@Test
