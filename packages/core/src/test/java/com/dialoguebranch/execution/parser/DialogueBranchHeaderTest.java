@@ -30,11 +30,16 @@ package com.dialoguebranch.execution.parser;
 
 import com.dialoguebranch.exception.ParseException;
 import com.dialoguebranch.execution.parser.DialogueBranchHeader.LineKind;
+import com.dialoguebranch.i18n.SourceTranslatable;
+import com.dialoguebranch.i18n.TranslatableExtractor;
+import com.dialoguebranch.model.common.DialogueBranchConstants;
+import com.dialoguebranch.model.execute.Node;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -164,6 +169,25 @@ public class DialogueBranchHeaderTest {
 	public void parserRejectsInvalidHeaderKeys() throws IOException {
 		String errors = errors("title: Start\nspeaker: Robin\nmy key: x\n---\nHi.\n===\n");
 		assertTrue(errors, errors.contains("Invalid header name: my key"));
+	}
+
+	@Test
+	public void commentIsAReservedTagForAuthorsOnly() throws IOException {
+		assertTrue(Arrays.asList(DialogueBranchConstants.DLB_RESERVED_HEADER_TAGS).contains("comment"));
+		String script = "title: Start\nspeaker: Robin\ncomment: Greets the user; see https://example.com // ok\n"
+				+ "---\nHello.\n===\n";
+		ParserResult result;
+		try (DialogueBranchParser parser = new DialogueBranchParser("test",
+				new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8)))) {
+			result = parser.readDialogue();
+		}
+		assertTrue(result.getParseErrors().isEmpty());
+		Node node = result.getDialogue().getNodes().get(0);
+		assertEquals("Greets the user; see https://example.com // ok",
+				node.getHeader().getOptionalTags().get("comment"));
+		List<SourceTranslatable> translatables = new TranslatableExtractor().extractFromNode(node);
+		assertEquals(List.of("Hello."), translatables.stream()
+				.map(t -> t.translatable().toExportFriendlyString()).toList());
 	}
 
 	@Test
