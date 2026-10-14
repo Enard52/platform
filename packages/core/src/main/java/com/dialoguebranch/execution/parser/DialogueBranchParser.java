@@ -219,6 +219,11 @@ public class DialogueBranchParser implements AutoCloseable {
 		return null;
 	}
 
+	private static LineNumberParseException commentInHeader(int lineNum) {
+		return new LineNumberParseException("Comments are not allowed in a node header " +
+				"(only before the first node, as the script's preamble)", lineNum, 1);
+	}
+
 	private static class ReadNodeResult {
 		public @Nullable Node node = null;
 		public final List<NodeParseException> parseExceptions = new ArrayList<>();
@@ -243,6 +248,9 @@ public class DialogueBranchParser implements AutoCloseable {
 		try {
 			boolean inHeader = true;
 			Map<String,String> headerMap = new LinkedHashMap<>();
+			// A comment line before this node's first tag: an error once a header follows, but a
+			// block of only comments at the end of the script is ignored, as it always was.
+			int commentLineNum = -1;
 			int lineNum = reader.getLineNum();
 			String line = readLine();
 			while (line != null && inHeader) {
@@ -253,6 +261,7 @@ public class DialogueBranchParser implements AutoCloseable {
 							"End of header not found", lineNum, 1);
 				} else if (DialogueBranchScriptSplitter.isHeaderSeparator(line)) {
 					preambleLines = flushPreamble();
+					if (commentLineNum != -1) throw commentInHeader(commentLineNum);
 					inHeader = false;
 				} else if (preambleLines != null && (line.isBlank() ||
 						DialogueBranchScriptSplitter.isCommentLine(line))) {
@@ -260,8 +269,17 @@ public class DialogueBranchParser implements AutoCloseable {
 					if (!line.isBlank()) preambleLines.add(line);
 					lineNum = reader.getLineNum();
 					line = readLine();
+				} else if (headerMap.isEmpty() && nodeState.getTitle() == null &&
+						nodeState.getSpeaker() == null &&
+						DialogueBranchScriptSplitter.isCommentLine(line)) {
+					preambleLines = flushPreamble();
+					if (commentLineNum == -1) commentLineNum = lineNum;
+					lineNum = reader.getLineNum();
+					line = readLine();
 				} else {
 					preambleLines = flushPreamble();
+					if (commentLineNum != -1 && !line.isBlank())
+						throw commentInHeader(commentLineNum);
 					parseHeaderLine(headerMap, line, lineNum, nodeState);
 					lineNum = reader.getLineNum();
 					line = readLine();
@@ -364,27 +382,27 @@ public class DialogueBranchParser implements AutoCloseable {
 	private void parseHeaderLine(Map<String,String> headerMap, String line,
 			int lineNum, NodeState nodeState)
 			throws LineNumberParseException {
-		int commentSep = line.indexOf("//");
-		if (commentSep != -1)
-			line = line.substring(0, commentSep);
-		if (line.trim().isEmpty())
-			return;
-		int sep = line.indexOf(':');
-		if (sep == -1) {
-			throw new LineNumberParseException(
-					"Character : not found in header line", lineNum, 1);
+		if (DialogueBranchScriptSplitter.isCommentLine(line))
+			throw commentInHeader(lineNum);
+		DialogueBranchHeader.Line headerLine = DialogueBranchHeader.readLine(line);
+		switch (headerLine.kind()) {
+			case BLANK:
+				return;
+			case NO_SEPARATOR:
+				throw new LineNumberParseException(
+						"Character : not found in header line", lineNum, 1);
+			case EMPTY_KEY:
+				throw new LineNumberParseException("Found empty header name", lineNum, 0);
+			case INVALID_KEY:
+				throw new LineNumberParseException("Invalid header name: " + headerLine.key(),
+						lineNum, headerLine.keyColumn());
+			case TAG:
+				break;
 		}
-		String keyUntrimmed = line.substring(0, sep);
-		String key = keyUntrimmed.trim();
-		int keyIndex = 1;
-		if (!key.isEmpty())
-			keyIndex += skipWhitespace(keyUntrimmed, 0);
-		String valueUntrimmed = line.substring(sep + 1);
-		String value = valueUntrimmed.trim();
-		int valueCol = sep + 2 + skipWhitespace(valueUntrimmed, 0);
-		if (key.isEmpty()) {
-			throw new LineNumberParseException("Found empty header name", lineNum, 0);
-		}
+		String key = Objects.requireNonNull(headerLine.key());
+		String value = Objects.requireNonNull(headerLine.value());
+		int keyIndex = headerLine.keyColumn();
+		int valueCol = headerLine.valueColumn();
 		if (headerMap.containsKey(key)) {
 			throw new LineNumberParseException("Found duplicate header: " + key, lineNum, keyIndex);
 		}

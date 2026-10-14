@@ -57,7 +57,7 @@ Docker build (from repo root):
 docker build -t dlb-web-service -f apps/api/Dockerfile .
 ```
 
-Database schema is managed by Flyway (`src/main/resources/db/migration/V*__*.sql`); migrations run automatically on startup against the configured MariaDB instance — there is no separate manual migrate command.
+Database schema is managed by Flyway (`src/main/resources/db/migration/V*__*.sql`, plus Java migrations in `src/main/java/db/migration/` for data conversions, such as `V9__strip_node_header_comments`); migrations run automatically on startup against the configured MariaDB instance — there is no separate manual migrate command.
 
 ### BFF service (`apps/bff/`)
 
@@ -123,7 +123,7 @@ The `com.dialoguebranch` package is divided into:
 
 - **`model/common`** — Shared types (`ProjectMetaData`, `StorageSource`)
 - **`model/execute`** — Immutable runtime model (`ExecutableProject`, `Dialogue`, `Node`, `NodeHeader`, `NodeBody`, `ResolvedNodeBody`, `Reply`, `VariableString`, `LoggedDialogue`, `DialogueState`) plus command types (`SetCommand`, `IfCommand`, `RandomCommand`, `ActionCommand`, `InputCommand` variants) and API protocol types (`DialogueMessage`, `DialogueStatement`, `ReplyMessage`)
-- **`execution`** — Runtime engine: `ActiveDialogue` drives a live session, `VariableStore` holds session variables; `parser/` contains `DialogueBranchParser`, `BodyParser`, `CommandParser`, `ProjectParser`, etc., plus `DialogueBranchScriptSplitter`, the single definition of how a script's text splits into its preamble (the comment lines before the first node, [#345](https://github.com/dialoguebranch/platform/issues/345)) and raw nodes (header/body text) and joins back, shared with the parser's separator rules and used by the Web Service's draft storage ([#342](https://github.com/dialoguebranch/platform/issues/342))
+- **`execution`** — Runtime engine: `ActiveDialogue` drives a live session, `VariableStore` holds session variables; `parser/` contains `DialogueBranchParser`, `BodyParser`, `CommandParser`, `ProjectParser`, etc., plus `DialogueBranchHeader`, the single definition of a node header as `key: value` tags only ([#343](https://github.com/dialoguebranch/platform/issues/343)), and `DialogueBranchScriptSplitter`, the single definition of how a script's text splits into its preamble (the comment lines before the first node, [#345](https://github.com/dialoguebranch/platform/issues/345)) and raw nodes (header/body text) and joins back, shared with the parser's separator rules and used by the Web Service's draft storage ([#342](https://github.com/dialoguebranch/platform/issues/342))
 - **`editing`** — `ProjectMetaDataWriter`, used to export a project's metadata
 - **`i18n`** — Translation: `Translator` applies `.json` translation files to a `Dialogue`; `TranslatableExtractor` walks node bodies to extract translatable segments
 - **`exception`** — Typed exceptions (`NodeParseException`, `ExecutionException`, etc.)
@@ -202,7 +202,7 @@ The app uses Tailwind CSS v4 (Vite plugin) and Font Awesome for icons. `__APP_VE
 
 - **`DialogueEditor.vue`** — Fetches a dialogue's draft nodes (`list-nodes`) and lays them out as a graph: `[[reply link]]` targets (parsed by `DlbReplyLinks.js`) become edges, and each node's `position` header tag (parsed/written by `DlbHeaderTags.js`) becomes its canvas coordinates, with a grid fallback for nodes authored before the editor existed (i.e. with no `position` tag yet). Dragging a node persists its new position via `update-node`.
 - **`NodeEditPanel.vue`** — Side panel for editing one node's title, speaker, color, and body text; saves via `update-node`/`rename-node`, prompting to update cross-references when a rename affects other nodes.
-- **`DlbHeaderTags.js`** — Parses/serializes the `key: value` header block above a node's `---` separator, mirroring `EditableHeaderParser.java`'s semantics exactly (including the reserved tags `title`/`speaker`/`position`/`colorId` from `DialogueBranchConstants`).
+- **`DlbHeaderTags.js`** — Parses/serializes the `key: value` header block above a node's `---` separator, following core's `DialogueBranchHeader` (`//` is part of a value, the first occurrence of a key wins), including the reserved tags `title`/`speaker`/`position`/`colorId` from `DialogueBranchConstants`. Its own copy of the header rules goes away with [#350](https://github.com/dialoguebranch/platform/issues/350) (headers exchanged as tags).
 - **`node-colors.js`** — Maps a node's `colorId` tag to an accent color, shared between the graph nodes and the color picker so they never drift apart visually.
 
 Edits in this mode operate on the draft copy of the dialogue (see [Draft dialogues and publishing](#draft-dialogues-and-publishing) in the API architecture section above); leaving edit mode back to balloon/text reconciles any in-flight test session against the now-stale draft content.
