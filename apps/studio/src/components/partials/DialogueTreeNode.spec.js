@@ -114,9 +114,9 @@ describe('DialogueTreeNode', () => {
         });
 
         expect(wrapper.text()).toContain('parent');
-        const folderRow = wrapper.find('div.cursor-pointer');
-        expect(folderRow.exists()).toBe(true);
-        await folderRow.trigger('click');
+        const folderName = wrapper.findAll('span').find((span) => span.text().trim() === 'parent');
+        expect(folderName).toBeDefined();
+        await folderName.trigger('click');
 
         expect(wrapper.emitted('toggleFolder')).toBeTruthy();
         expect(wrapper.emitted('toggleFolder')[0]).toEqual(['parent']);
@@ -170,7 +170,7 @@ describe('DialogueTreeNode', () => {
 
     it('prompts confirmation when renaming dialogue with references and updates references when confirmed', async () => {
         authoring.findDialogueReferences.mockResolvedValue([
-            { dialogueName: 'other-dialogue', nodeId: 'Step1', replyIndex: 0 },
+            { dialogueName: 'other-dialogue', nodeTitle: 'Step1', snippet: '[[other-dialogue#Step1]]' },
         ]);
         authoring.renameDraftDialogue.mockResolvedValue({});
 

@@ -31,8 +31,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import { DLB_APP_MODE_DRAFT, DLB_APP_MODE_LIVE } from '@/StudioClientState.js';
 import {
-    SORT_DEFAULT, SORT_NAME_ASC, SORT_NAME_DESC,
-    SORT_UPDATED_DESC, SORT_SIZE_DESC,
+    SORT_DEFAULT, SORT_UPDATED_DESC,
 } from '@/composables/dialogue-tree.js';
 
 const client = {
@@ -112,7 +111,9 @@ describe('DialogueBrowser', () => {
         expect(wrapper.emitted('hasUnpublishedChanges').at(-1)).toEqual([true]);
 
         const renderedNodes = wrapper.findAll('.stub-tree-node');
-        expect(renderedNodes.length).toBeGreaterThanOrEqual(1);
+        const renderedNames = renderedNodes.map((node) => node.attributes('data-name'));
+        expect(renderedNames).toHaveLength(2);
+        expect(renderedNames).toEqual(expect.arrayContaining(['main', 'intro']));
     });
 
     it('lists published dialogues in live mode', async () => {
@@ -227,11 +228,10 @@ describe('DialogueBrowser', () => {
         });
         expect(wrapper.text()).toContain('resumable-dialogue');
 
-        const resumeButton = wrapper.findAll('button').find((b) => b.text().includes('Resume'));
-        if (resumeButton) {
-            await resumeButton.trigger('click');
-            expect(wrapper.emitted('resumeDialogue')).toBeTruthy();
-            expect(wrapper.emitted('resumeDialogue')[0]).toEqual(['resumable-dialogue']);
-        }
+        const continueButton = wrapper.findAll('button').find((b) => b.text().includes('Continue'));
+        expect(continueButton).toBeDefined();
+        await continueButton.trigger('click');
+        expect(wrapper.emitted('resumeDialogue')).toBeTruthy();
+        expect(wrapper.emitted('resumeDialogue')[0]).toEqual(['resumable-dialogue']);
     });
 });
