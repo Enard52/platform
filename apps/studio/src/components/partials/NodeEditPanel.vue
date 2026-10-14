@@ -24,6 +24,7 @@ const client = useAuthoringClient();
 
 const title = ref('');
 const speaker = ref('');
+const comment = ref('');
 const colorId = ref('0');
 const body = ref('');
 const saving = ref(false);
@@ -43,6 +44,7 @@ function loadFromNode() {
     const tags = tagsToMap(props.node.tags);
     title.value = props.node.title;
     speaker.value = tags.get('speaker') ?? '';
+    comment.value = tags.get('comment') ?? '';
     colorId.value = tags.get('colorId') ?? '0';
     body.value = props.node.body ?? '';
     error.value = '';
@@ -93,6 +95,10 @@ function saveContent(baseTags, nodeTitle, wasRenamed) {
     const tags = tagsToMap(baseTags);
     tags.set('speaker', speaker.value);
     tags.set('colorId', String(colorId.value));
+    // An emptied comment removes the tag rather than leaving an empty one behind.
+    const trimmedComment = comment.value.trim();
+    if (trimmedComment) tags.set('comment', trimmedComment);
+    else tags.delete('comment');
 
     client.updateDraftNode(state.value.selectedProject?.slug, props.dialogueName, nodeTitle,
         mapToTags(tags), body.value)
@@ -307,6 +313,12 @@ defineExpose({
                             <label class="block font-title font-bold text-sm text-orange-darker mb-1">Speaker</label>
                             <TextInput class="w-full" v-model="speaker" placeholder="Speaker name..." />
                         </div>
+                    </div>
+
+                    <!-- Comment -->
+                    <div>
+                        <label class="block font-title font-bold text-sm text-orange-darker mb-1">Comment</label>
+                        <TextInput class="w-full" v-model="comment" data-test="node-comment" placeholder="A note about this node, for authors (optional)..." />
                     </div>
 
                     <!-- Color -->
