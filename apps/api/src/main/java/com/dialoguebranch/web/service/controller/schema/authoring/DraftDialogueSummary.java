@@ -45,6 +45,7 @@ public class DraftDialogueSummary {
 	private final boolean isChanged;
 	private final boolean isDeleted;
 	private final String previousPublishedName;
+	private final String preamble;
 
 	/**
 	 * Creates a {@link DraftDialogueSummary} from the given {@link DBDraftDialogue} entity and a
@@ -61,6 +62,7 @@ public class DraftDialogueSummary {
 		this.isChanged = dialogue.getIsChanged();
 		this.isDeleted = dialogue.getIsDeleted();
 		this.previousPublishedName = dialogue.getPreviousPublishedName();
+		this.preamble = dialogue.getPreamble();
 	}
 
 	/**
@@ -129,6 +131,15 @@ public class DraftDialogueSummary {
 	 */
 	public String getPreviousPublishedName() {
 		return previousPublishedName;
+	}
+
+	/**
+	 * Returns the draft dialogue's preamble: the comment lines at the start of its script (#345).
+	 *
+	 * @return the preamble's comment lines joined with LF, or an empty string if there is none.
+	 */
+	public String getPreamble() {
+		return preamble;
 	}
 
 }

@@ -375,7 +375,8 @@ export class DialogueBranchAuthoringClient extends BaseClient {
      *
      * @param {string} projectSlug The project's slug.
      * @returns {Promise<Object[]>} One entry per draft dialogue: `{ name, isNew, isChanged,
-     * isDeleted, updatedAt, nodeCount, … }`.
+     * isDeleted, updatedAt, nodeCount, preamble, … }`, where `preamble` is the comment lines at
+     * the start of its script (`//` lines joined with `\n`, or `""` for none).
      */
     listDraftDialogues(projectSlug) {
         const url = this._baseUrl + "/authoring/list-dialogues?projectSlug=" + encodeURIComponent(projectSlug);
@@ -385,6 +386,28 @@ export class DialogueBranchAuthoringClient extends BaseClient {
             headers: { "Content-Type": "application/json" }
         })
         .then((response) => this._handleResponse(response));
+    }
+
+    /**
+     * Replaces a draft dialogue's preamble: the comment lines at the start of its script. Blank
+     * lines are left out; every other line must be a `//` comment line, or the request is refused.
+     * Like any draft change, it takes effect on the next publish.
+     *
+     * @param {string} projectSlug The project's slug.
+     * @param {string} dialogueName The dialogue's name.
+     * @param {string} preamble The new preamble: `//` comment lines joined with `\n`, or `""`
+     * for none.
+     * @returns {Promise<{preamble: string}>} The preamble as stored.
+     */
+    updateDraftPreamble(projectSlug, dialogueName, preamble) {
+        const url = this._baseUrl + "/authoring/update-preamble?projectSlug=" + encodeURIComponent(projectSlug)
+            + "&dialogueName=" + encodeURIComponent(dialogueName);
+
+        return this._fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ preamble }),
+        }).then((response) => this._handleResponse(response));
     }
 
     /**

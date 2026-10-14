@@ -41,6 +41,14 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ### Added
 
+- Studio: a dialogue's preamble (the comment block at the start of its script) is shown at the top
+  of the graph editor, collapsible, and can be edited there as plain text: Studio adds and removes
+  the `//` prefixes, and empty lines are left out
+  ([#346](https://github.com/dialoguebranch/platform/issues/346)). Dialogues without one offer
+  "Add script comment". Web service: `/authoring/list-dialogues` includes each dialogue's
+  `preamble`, and a new `POST /authoring/update-preamble` replaces it (refusing lines that aren't
+  `//` comments); client-js gains `updateDraftPreamble`.
+
 - Studio: a node's `comment` tag can be edited in the node edit panel, and a node with a comment
   shows a speech-bubble icon on its card in the graph editor, with the comment on hover
   ([#348](https://github.com/dialoguebranch/platform/issues/348)). Emptying the field removes the

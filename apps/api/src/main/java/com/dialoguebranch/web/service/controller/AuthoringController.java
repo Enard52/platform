@@ -34,6 +34,7 @@ import com.dialoguebranch.web.service.QueryRunner;
 import com.dialoguebranch.web.service.auth.Permission;
 import com.dialoguebranch.web.service.controller.schema.authoring.*;
 import com.dialoguebranch.web.service.controller.schema.authoring.DraftNodeResponse;
+import com.dialoguebranch.web.service.controller.schema.authoring.PreamblePayload;
 import com.dialoguebranch.web.service.controller.schema.authoring.RenameNodeResponse;
 import com.dialoguebranch.web.service.exception.BadRequestException;
 import com.dialoguebranch.web.service.exception.ConflictException;
@@ -347,6 +348,55 @@ public class AuthoringController {
 									"Dialogue not found: " + dialogueName));
 					draftDialogueService.restoreDialogue(dialogue);
 					return dialogue;
+				},
+				version, response, "", Permission.DIALOGUE_AUTHOR);
+	}
+
+	/**
+	 * Replaces the preamble of a draft dialogue (#345, #346): the comment lines at the start of
+	 * its script. Like any other draft change, it takes effect on the next publish.
+	 *
+	 * @param request the HTTP request (to retrieve authentication headers).
+	 * @param response the HTTP response (to add header WWW-Authenticate in case of a 401
+	 *                 Unauthorized error).
+	 * @param version the API version to use, e.g. '1'.
+	 * @param projectSlug the unique slug of the project the dialogue belongs to.
+	 * @param dialogueName the name of the draft dialogue.
+	 * @param payload the new preamble: {@code //} comment lines, with blank lines left out; empty
+	 *                for none.
+	 * @return the preamble as stored.
+	 * @throws HttpException if the project or dialogue does not exist, the dialogue is pending
+	 * deletion, a line isn't a comment line, or the user is not authorized.
+	 */
+	@Operation(summary = "Replace the preamble (the comment lines at the start of the script) " +
+			"of a draft dialogue.")
+	@Parameter(name = "version", hidden = true)
+	@PostMapping("/update-preamble")
+	public PreamblePayload updatePreamble(
+			HttpServletRequest request,
+			HttpServletResponse response,
+			@Parameter(hidden = true) @PathVariable(value = "version") String version,
+			@RequestParam(value = "projectSlug") String projectSlug,
+			@RequestParam(value = "dialogueName") String dialogueName,
+			@RequestBody PreamblePayload payload
+	) throws HttpException {
+		return QueryRunner.runQuery(
+				(protocolVersion, user) -> {
+					logger.info("POST /v{}/authoring/update-preamble [user: {}]", version, user);
+					DBProject project = projectService.findBySlug(projectSlug)
+							.orElseThrow(() -> new NotFoundException(
+									"Project not found: " + projectSlug));
+					DBDraftDialogue dialogue = draftDialogueService
+							.findDialogue(project, dialogueName)
+							.orElseThrow(() -> new NotFoundException(
+									"Dialogue not found: " + dialogueName));
+					checkNotDeleted(dialogue);
+					try {
+						return new PreamblePayload(draftDialogueService.updatePreamble(dialogue,
+								payload == null ? null : payload.preamble()));
+					} catch (IllegalArgumentException e) {
+						throw new BadRequestException(e.getMessage());
+					}
 				},
 				version, response, "", Permission.DIALOGUE_AUTHOR);
 	}

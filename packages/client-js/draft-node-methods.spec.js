@@ -78,3 +78,15 @@ describe('draft node methods', () => {
         expect(result.node.tags[0]).toEqual({ key: 'title', value: 'Start' });
     });
 });
+
+describe('draft preamble', () => {
+    it('updateDraftPreamble sends the preamble and returns it as stored', async () => {
+        const { client, fetch } = clientReturning({ preamble: '// About.' });
+        const result = await client.updateDraftPreamble('proj', 'folder/main', '// About.\n');
+        const [url, init] = fetch.mock.calls[0];
+        expect(url).toBe('/api/v1/authoring/update-preamble?projectSlug=proj&dialogueName=folder%2Fmain');
+        expect(init.method).toBe('POST');
+        expect(JSON.parse(init.body)).toEqual({ preamble: '// About.\n' });
+        expect(result.preamble).toBe('// About.');
+    });
+});
