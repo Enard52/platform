@@ -31,7 +31,7 @@
  * {@code DialogueBranchConstants.DLB_RESERVED_HEADER_TAGS} in packages/core (note: "colorId", not
  * "colorID").
  */
-export const RESERVED_HEADER_TAGS = ['title', 'speaker', 'position', 'colorId'];
+export const RESERVED_HEADER_TAGS = ['title', 'speaker', 'position', 'colorId', 'comment'];
 
 /**
  * Parses a raw `.dlb` node header (the block of `key: value` lines above the `---` separator)

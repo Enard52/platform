@@ -30,6 +30,7 @@ You are free to define other key-value pairs that might serve as meta-data in yo
 
 * `colorId` — a number specifying a colour used by the node-graph editor to visually group or distinguish nodes.
 * `position` — a pair of `x,y` coordinates (comma-separated integers) used to position the node on the editor's canvas. Malformed values silently default to `0,0`.
+* `comment` — an optional, one-line author note describing the node or its purpose. It is purely for authors, has no effect on dialogue execution, and is not sent to participants or translated.
 
 ::: info Note
 The reserved tag is spelled `colorId` (lowercase `d`). Some older example content in this repository still uses the legacy spelling `colorID` — the parser accepts either (any header key you write is stored as-is), but only `colorId` is recognised by the visual editor.
@@ -42,6 +43,7 @@ Below is an example of what this looks like in a .dlb file:
 ```text
 title: Start
 speaker: Robin
+comment: Asks how the user slept; the answer decides the branch.
 colorId: 3
 position: -416,112
 ```

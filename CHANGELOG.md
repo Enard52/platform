@@ -9,6 +9,9 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ### Added
 
+- Language: reserved a 'comment' header tag for an optional, one-line author node note in core
+  `DialogueBranchConstants.DLB_RESERVED_HEADER_TAGS` and Studio's `RESERVED_HEADER_TAGS`
+  ([#347](https://github.com/dialoguebranch/platform/issues/347)).
 - Core: `DialogueBranchScriptSplitter`, which splits the text of a `.dlb` script into its raw
   nodes (header and body text) and joins them back, by the same separator rules as
   `DialogueBranchParser` ([#342](https://github.com/dialoguebranch/platform/issues/342)). It

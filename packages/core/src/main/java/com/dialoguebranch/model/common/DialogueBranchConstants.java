@@ -83,6 +83,6 @@ public class DialogueBranchConstants {
 	/** The list of Strings defining the names of header tags that bear a special meaning within
 	 * Dialogue Branch */
 	public static final String[] DLB_RESERVED_HEADER_TAGS
-			= {"title","speaker","position","colorId"};
+			= {"title","speaker","position","colorId","comment"};
 
 }
