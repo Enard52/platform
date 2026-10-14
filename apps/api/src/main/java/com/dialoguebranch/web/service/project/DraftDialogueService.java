@@ -29,6 +29,7 @@
 package com.dialoguebranch.web.service.project;
 
 import com.dialoguebranch.exception.ParseException;
+import com.dialoguebranch.execution.parser.DialogueBranchHeader;
 import com.dialoguebranch.execution.parser.DialogueBranchParser;
 import com.dialoguebranch.execution.parser.DialogueBranchScriptSplitter;
 import com.dialoguebranch.execution.parser.DialogueBranchScriptSplitter.RawNode;
@@ -185,7 +186,7 @@ public class DraftDialogueService {
 						rawNode.startLine() + ": node has no '" +
 						DialogueBranchConstants.DLB_HEADER_SEPARATOR + "' line.");
 			}
-			String title = extractHeaderTag(rawNode.header(), "title");
+			String title = DialogueBranchHeader.get(rawNode.header(), "title");
 			if (title == null || title.isEmpty()) {
 				throw new IllegalArgumentException("Dialogue '" + name + "', line " +
 						rawNode.startLine() + ": node has no 'title'.");
@@ -201,7 +202,7 @@ public class DraftDialogueService {
 		for (RawNode rawNode : rawNodes) {
 			DBDraftNode node = new DBDraftNode();
 			node.setDraftDialogue(dialogue);
-			node.setTitle(extractHeaderTag(rawNode.header(), "title"));
+			node.setTitle(DialogueBranchHeader.get(rawNode.header(), "title"));
 			node.setHeader(rawNode.header());
 			node.setBody(rawNode.body());
 			// Strictly increasing timestamps preserve the source script's node order when nodes
@@ -526,7 +527,7 @@ public class DraftDialogueService {
 		}
 
 		node.setTitle(newTitle);
-		node.setHeader(rewriteTitleTag(node.getHeader(), newTitle));
+		node.setHeader(DialogueBranchHeader.set(node.getHeader(), "title", newTitle));
 		node.setUpdatedAt(Instant.now());
 		DBDraftNode renamed = nodeRepository.save(node);
 		markChanged(dialogue);
@@ -785,41 +786,6 @@ public class DraftDialogueService {
 			matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
 		}
 		matcher.appendTail(result);
-		return result.toString();
-	}
-
-	/**
-	 * Rewrites the {@code title:} line of a raw header string to the given new title, mirroring
-	 * {@code EditableHeaderParser}'s line-parsing semantics (first {@code :} splits key/value,
-	 * first occurrence of a key wins) just for the {@code title} tag specifically. If no existing
-	 * {@code title:} line is found, one is prepended.
-	 *
-	 * @param header   the raw header string to rewrite.
-	 * @param newTitle the new title.
-	 * @return the rewritten header.
-	 */
-	private String rewriteTitleTag(String header, String newTitle) {
-		String[] lines = header == null ? new String[0] : header.split("\n", -1);
-		boolean found = false;
-		StringBuilder result = new StringBuilder();
-		for (int i = 0; i < lines.length; i++) {
-			String line = lines[i];
-			String withoutComment = line.contains("//")
-					? line.substring(0, line.indexOf("//")) : line;
-			int sep = withoutComment.indexOf(':');
-			String key = sep >= 0 ? withoutComment.substring(0, sep).trim() : null;
-			if (!found && "title".equals(key)) {
-				result.append("title: ").append(newTitle);
-				found = true;
-			} else {
-				result.append(line);
-			}
-			if (i < lines.length - 1) result.append("\n");
-		}
-		if (!found) {
-			String titleLine = "title: " + newTitle;
-			return (header == null || header.isEmpty()) ? titleLine : titleLine + "\n" + header;
-		}
 		return result.toString();
 	}
 
@@ -1149,28 +1115,4 @@ public class DraftDialogueService {
 		}
 		return DialogueBranchScriptSplitter.join(new Script(dialogue.getPreamble(), rawNodes));
 	}
-
-	/**
-	 * Extracts the value of a single header tag from a raw header string, mirroring {@code
-	 * EditableHeaderParser}'s line-parsing semantics (first {@code :} splits key/value, trailing
-	 * {@code //} comment stripped, first occurrence of a duplicate key wins) — the same convention
-	 * already used by {@link #rewriteTitleTag}.
-	 *
-	 * @param header the raw header string to search.
-	 * @param key    the tag key to look for.
-	 * @return the trimmed tag value, or {@code null} if not found.
-	 */
-	private String extractHeaderTag(String header, String key) {
-		if (header == null) return null;
-		for (String line : header.split("\n")) {
-			String withoutComment = line.contains("//") ? line.substring(0, line.indexOf("//")) : line;
-			int sep = withoutComment.indexOf(':');
-			if (sep < 0) continue;
-			if (key.equals(withoutComment.substring(0, sep).trim())) {
-				return withoutComment.substring(sep + 1).trim();
-			}
-		}
-		return null;
-	}
-
 }

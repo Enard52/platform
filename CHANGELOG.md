@@ -7,6 +7,24 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** Language: a node header is now a model, a list of `key: value` tags and nothing
+  else ([#343](https://github.com/dialoguebranch/platform/issues/343)). `//` no longer starts a
+  comment in a header: it is part of the value, so `image: https://...` needs no escape there. A
+  trailing comment on a header line (`title: Start // entry point`) now makes the value invalid,
+  and a comment line inside a header is an error ("Comments are not allowed in a node header");
+  document a node with a `comment` tag or a body comment, and a script with its preamble. Header
+  keys must consist of letters, digits, `_` and `-`. Body comments are unchanged. Header reading
+  and writing is defined once, in core's new `DialogueBranchHeader`, which the parser and the Web
+  Service use. Existing stored content is converted automatically: a migration removes header
+  comments from draft and published dialogues (the comment lines at the start of a dialogue's
+  first draft node move to its preamble), which doesn't change what any dialogue does.
+- **Breaking:** Web service: `/authoring/create-node` and `/authoring/update-node` refuse (`400`)
+  a header whose `title` isn't the node's title, or that has none
+  ([#343](https://github.com/dialoguebranch/platform/issues/343)). A node's title changes only
+  through `/authoring/rename-node`, which keeps its title and header in step.
+
 ### Added
 
 - Language: a script's **preamble**, the `//` comment lines at the very start of a `.dlb` file,
@@ -24,6 +42,11 @@ and this project adheres to a single monorepo-wide version declared in `global.j
   the caller.
 
 ### Fixed
+
+- Studio: moving a node in the graph editor, or saving it in the node edit panel, deleted the
+  comments in its header, and a header value containing `//` was cut off there
+  ([#343](https://github.com/dialoguebranch/platform/issues/343)). Headers no longer contain
+  comments, and Studio keeps `//` as part of a value.
 
 - Web service: importing a project (and seeding one at startup) could store a valid `.dlb` script
   wrongly as draft nodes, without any error

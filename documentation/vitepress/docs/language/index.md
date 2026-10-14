@@ -21,7 +21,13 @@ A *Node* consists of two parts, a header, and a body.
 
 ### Header
 
-The header consists of a series of lines, each with a `key: value`-pair. The two required key-value pairs are:
+The header consists of a series of lines, each with a `key: value`-pair (a *tag*), and nothing else:
+
+* Each line is split at its first `:` into a key and a value, both with surrounding whitespace removed. The value may contain anything else, including further `:` characters and `//` (which, unlike in the body, does **not** start a comment in a header).
+* A key consists of letters, digits, `_` and `-` only, and may appear only once per header.
+* Blank lines are ignored. Any other line is an error, including a comment line: to document a Node, use the `comment` tag or a comment in its body, and to document the whole script, use its [preamble](#preamble).
+
+The two required key-value pairs are:
 
 * `title` — a String matching `[A-Za-z0-9_-]+` that uniquely identifies this *Node* within this dialogue (matching is case-insensitive).
 * `speaker` — a String that defines the name of the *Agent* speaking in this *Node*. Required for every node, **except** a node titled [`End`](#ending-a-dialogue), whose speaker is ignored even if present.
@@ -93,10 +99,10 @@ A `.dlb` file does not need to be registered anywhere — any file with a `.dlb`
 
 ### Comments
 
-If you want to document your Dialogue Branch scripts with comments, Dialogue Branch supports line-comments. Everything after a double-slash `//` is considered a comment — this works both in the header and in the body of a Node:
+If you want to document your Dialogue Branch scripts with comments, Dialogue Branch supports line-comments in the body of a Node: everything after a double-slash `//` is considered a comment. Comments are not allowed in a Node's header (there, `//` is part of a value); a script as a whole can be documented in its [preamble](#preamble).
 
 ```text
-title: Start // this is our entry point
+title: Start
 speaker: Robin
 ---
 Thank you very much. // Thank the user for the gift.
@@ -106,7 +112,7 @@ Thank you very much. // Thank the user for the gift.
    ...
 ```
 
-Pay attention when including hyperlinks in your text (e.g. https://www.dialoguebranch.com) — in this case, the first forward-slash should be escaped, as follows:
+Pay attention when including hyperlinks in the text of a body (e.g. https://www.dialoguebranch.com) — in this case, the first forward-slash should be escaped, as follows (in a header value, no escape is needed):
 
 ```text
 Please visit https:\//www.dialoguebranch.com for more information! // Comment goes here.

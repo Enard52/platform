@@ -28,6 +28,7 @@
 
 package com.dialoguebranch.web.service.controller;
 
+import com.dialoguebranch.execution.parser.DialogueBranchHeader;
 import com.dialoguebranch.web.service.QueryRunner;
 import com.dialoguebranch.web.service.auth.Permission;
 import com.dialoguebranch.web.service.controller.schema.authoring.*;
@@ -51,6 +52,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Controller for the {@code /authoring/...} end-points of the Dialogue Branch Web Service. These
@@ -97,6 +99,24 @@ public class AuthoringController {
 		this.projectService = projectService;
 		this.draftDialogueService = draftDialogueService;
 		this.draftProjectService = draftProjectService;
+	}
+
+	/**
+	 * Checks that a node header's {@code title} tag is the node's title. A node's title is changed
+	 * only by renaming it ({@code /rename-node}), which keeps its title and its header in step, so
+	 * {@code /create-node} and {@code /update-node} refuse a header whose title differs, including
+	 * a header without one (an empty title).
+	 *
+	 * @param header the header text sent by the client.
+	 * @param title  the node's title.
+	 * @throws BadRequestException if the header's title differs from {@code title}.
+	 */
+	private static void checkHeaderTitle(String header, String title) throws BadRequestException {
+		String headerTitle = Objects.requireNonNullElse(DialogueBranchHeader.get(header, "title"), "");
+		if (!headerTitle.equals(title)) {
+			throw new BadRequestException("The header's title ('" + headerTitle + "') must be " +
+					"the node's title ('" + title + "'). Use /rename-node to change a node's title.");
+		}
 	}
 
 	/**
@@ -480,6 +500,7 @@ public class AuthoringController {
 							.orElseThrow(() -> new NotFoundException(
 									"Dialogue not found: " + dialogueName));
 					checkNotDeleted(dialogue);
+					checkHeaderTitle(payload.getHeader(), payload.getTitle());
 					return draftDialogueService.createNode(dialogue, payload.getTitle(),
 							payload.getHeader(), payload.getBody());
 				},
@@ -527,6 +548,7 @@ public class AuthoringController {
 					DBDraftNode node = draftDialogueService.findNode(dialogue, nodeTitle)
 							.orElseThrow(() -> new NotFoundException(
 									"Node not found: " + nodeTitle));
+					checkHeaderTitle(payload.getHeader(), node.getTitle());
 					return draftDialogueService.updateNode(dialogue, node, payload.getHeader(),
 							payload.getBody());
 				},

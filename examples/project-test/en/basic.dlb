@@ -1,4 +1,5 @@
-title: Start // every dialogue needs a node titled "Start"
+title: Start
+comment: every dialogue needs a node titled "Start"
 tags:
 speaker: Martin McOwl
 colorID: 2

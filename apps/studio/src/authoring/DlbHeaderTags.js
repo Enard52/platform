@@ -35,13 +35,10 @@ export const RESERVED_HEADER_TAGS = ['title', 'speaker', 'position', 'colorId'];
 
 /**
  * Parses a raw `.dlb` node header (the block of `key: value` lines above the `---` separator)
- * into an ordered Map of tag name to value. Mirrors EditableHeaderParser.java's semantics exactly:
- * for each line, a trailing `//` comment is stripped, the *first* `:` splits key from value (both
- * trimmed), lines without a `:` or with an empty key are skipped, and if a key appears more than
- * once, the first occurrence wins (later duplicates are ignored).
- *
- * A JS Map is used (rather than a plain object) so insertion order is preserved when the tags are
- * serialized back — an improvement over the Java model's HashMap-backed, unordered tags.
+ * into an ordered Map of tag name to value, following core's `DialogueBranchHeader.read`: the
+ * *first* `:` splits key from value (both trimmed), `//` has no special meaning (it is part of the
+ * value), lines without a `:` or with an empty key are skipped, and if a key appears more than
+ * once, the first occurrence wins.
  *
  * @param {string} sourceCode the raw header source.
  * @returns {Map<string,string>} the parsed tags, in the order they first appeared.
@@ -50,9 +47,7 @@ export function parseHeaderTags(sourceCode) {
     const tags = new Map();
     if (!sourceCode) return tags;
 
-    for (const rawLine of sourceCode.split('\n')) {
-        const commentIndex = rawLine.indexOf('//');
-        const line = commentIndex >= 0 ? rawLine.slice(0, commentIndex) : rawLine;
+    for (const line of sourceCode.split(/\r\n|\r|\n/)) {
         const sep = line.indexOf(':');
         if (sep < 0) continue;
         const key = line.slice(0, sep).trim();
