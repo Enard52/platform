@@ -164,6 +164,7 @@ function buildGraph(nodes) {
         data: {
             title: node.title,
             speaker: tags.get('speaker') ?? '',
+            comment: tags.get('comment') ?? '',
             colorId: tags.get('colorId') ?? '0',
             externalLinks: externalLinkCounts.get(node.title) ?? 0,
             isStart: isReservedNodeTitle(node.title, RESERVED_NODE_START_ID),
@@ -380,6 +381,9 @@ defineExpose({
                         <FontAwesomeIcon v-if="data.isStart" icon="fa-solid fa-play" class="text-[10px] shrink-0" title="Start node — the dialogue's entry point" />
                         <FontAwesomeIcon v-if="data.isEnd" icon="fa-solid fa-flag-checkered" class="text-[10px] shrink-0" title="End node — terminates the dialogue" />
                         <span class="truncate">{{ data.title }}</span>
+                        <span v-if="data.comment" class="ml-auto shrink-0 cursor-help" :title="data.comment" data-test="node-comment-icon">
+                            <FontAwesomeIcon icon="fa-regular fa-comment" class="text-[11px]" />
+                        </span>
                     </div>
                     <div v-if="data.speaker || data.externalLinks" class="px-3 py-2 text-xs font-title">
                         <div v-if="data.speaker" class="text-grey-dark truncate">{{ data.speaker }}</div>

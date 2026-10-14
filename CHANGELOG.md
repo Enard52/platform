@@ -41,10 +41,15 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ### Added
 
+- Studio: a node's `comment` tag can be edited in the node edit panel, and a node with a comment
+  shows a speech-bubble icon on its card in the graph editor, with the comment on hover
+  ([#348](https://github.com/dialoguebranch/platform/issues/348)). Emptying the field removes the
+  tag.
+
 - Language: a reserved `comment` header tag, a one-line note about a node for authors
   ([#347](https://github.com/dialoguebranch/platform/issues/347)). It has no effect on how a
-  dialogue runs, isn't sent to clients playing a dialogue, and isn't translated. Showing and
-  editing it in Studio is [#348](https://github.com/dialoguebranch/platform/issues/348).
+  dialogue runs, isn't sent to clients playing a dialogue, and isn't translated. Studio shows and
+  edits it (see below).
 
 - Language: a script's **preamble**, the `//` comment lines at the very start of a `.dlb` file,
   before the first node ([#345](https://github.com/dialoguebranch/platform/issues/345)). It

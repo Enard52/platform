@@ -26,7 +26,7 @@ import {
     faServer, faSliders, faTrash, faTriangleExclamation, faUser, faUserGear, faUserLock,
     faUserXmark, faWandMagicSparkles, faXmark,
 } from '@fortawesome/free-solid-svg-icons';
-import { faComments, faCopy } from '@fortawesome/free-regular-svg-icons';
+import { faComment, faComments, faCopy } from '@fortawesome/free-regular-svg-icons';
 
 library.add(
     faAlignLeft, faAnglesLeft, faAnglesRight, faArrowUpRightFromSquare, faArrowsRotate, faBug,
@@ -38,7 +38,7 @@ library.add(
     faPlay, faPlus, faRightFromBracket, faRocket, faRotateLeft, faRotateRight, faSatelliteDish,
     faServer, faSliders, faTrash, faTriangleExclamation, faUser, faUserGear, faUserLock,
     faUserXmark, faWandMagicSparkles, faXmark,
-    faComments, faCopy,
+    faComment, faComments, faCopy,
 );
 
 const stateRef = ref(state);
