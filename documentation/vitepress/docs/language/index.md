@@ -32,10 +32,11 @@ The two required key-value pairs are:
 * `title` — a String matching `[A-Za-z0-9_-]+` that uniquely identifies this *Node* within this dialogue (matching is case-insensitive).
 * `speaker` — a String that defines the name of the *Agent* speaking in this *Node*. Required for every node, **except** a node titled [`End`](#ending-a-dialogue), whose speaker is ignored even if present.
 
-You are free to define other key-value pairs that might serve as meta-data in your application. The visual editor in Dialogue Branch Studio (see [Dialogue Branch Web Services](/web-services/)) additionally recognises the following reserved tags:
+You are free to define other key-value pairs that might serve as meta-data in your application. The following tags are reserved; the first two are used by the visual editor in Dialogue Branch Studio (see [Dialogue Branch Web Services](/web-services/)):
 
 * `colorId` — a number specifying a colour used by the node-graph editor to visually group or distinguish nodes.
 * `position` — a pair of `x,y` coordinates (comma-separated integers) used to position the node on the editor's canvas. Malformed values silently default to `0,0`.
+* `comment` — a one-line note about the node, for authors (for example what it is for, or what still needs doing). It has no effect on how a dialogue runs, isn't shown to the people taking part in it, and isn't translated. Like any header value it may contain anything, including `//` and URLs.
 
 ::: info Note
 The reserved tag is spelled `colorId` (lowercase `d`). Some older example content in this repository still uses the legacy spelling `colorID` — the parser accepts either (any header key you write is stored as-is), but only `colorId` is recognised by the visual editor.

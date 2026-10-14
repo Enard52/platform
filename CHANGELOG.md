@@ -27,6 +27,11 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ### Added
 
+- Language: a reserved `comment` header tag, a one-line note about a node for authors
+  ([#347](https://github.com/dialoguebranch/platform/issues/347)). It has no effect on how a
+  dialogue runs, isn't sent to clients playing a dialogue, and isn't translated. Showing and
+  editing it in Studio is [#348](https://github.com/dialoguebranch/platform/issues/348).
+
 - Language: a script's **preamble**, the `//` comment lines at the very start of a `.dlb` file,
   before the first node ([#345](https://github.com/dialoguebranch/platform/issues/345)). It
   belongs to the dialogue rather than to its first node: core's `Dialogue` model and
