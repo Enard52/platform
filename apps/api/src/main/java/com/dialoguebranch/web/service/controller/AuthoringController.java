@@ -29,9 +29,12 @@
 package com.dialoguebranch.web.service.controller;
 
 import com.dialoguebranch.execution.parser.DialogueBranchHeader;
+import com.dialoguebranch.execution.parser.DialogueBranchParser;
 import com.dialoguebranch.web.service.QueryRunner;
 import com.dialoguebranch.web.service.auth.Permission;
 import com.dialoguebranch.web.service.controller.schema.authoring.*;
+import com.dialoguebranch.web.service.controller.schema.authoring.DraftNodeResponse;
+import com.dialoguebranch.web.service.controller.schema.authoring.RenameNodeResponse;
 import com.dialoguebranch.web.service.exception.BadRequestException;
 import com.dialoguebranch.web.service.exception.ConflictException;
 import com.dialoguebranch.web.service.exception.HttpException;
@@ -99,6 +102,26 @@ public class AuthoringController {
 		this.projectService = projectService;
 		this.draftDialogueService = draftDialogueService;
 		this.draftProjectService = draftProjectService;
+	}
+
+	/**
+	 * Turns a node's header tags, as sent by a client, into header text with {@link
+	 * DialogueBranchHeader#write}, refusing tags that don't form a valid header (#350).
+	 *
+	 * @param tags the tags, in order.
+	 * @return the header text.
+	 * @throws BadRequestException if the tags are missing, or a key is invalid or occurs more than
+	 * once, or a value spans more than one line.
+	 */
+	private static String headerFromTags(List<DialogueBranchHeader.Tag> tags)
+			throws BadRequestException {
+		if (tags == null)
+			throw new BadRequestException("Field 'tags' is required.");
+		try {
+			return DialogueBranchHeader.write(tags);
+		} catch (IllegalArgumentException e) {
+			throw new BadRequestException("Invalid header tags: " + e.getMessage());
+		}
 	}
 
 	/**
@@ -439,7 +462,7 @@ public class AuthoringController {
 	@Operation(summary = "List all nodes in a draft dialogue.")
 	@Parameter(name = "version", hidden = true)
 	@GetMapping("/list-nodes")
-	public List<DBDraftNode> listNodes(
+	public List<DraftNodeResponse> listNodes(
 			HttpServletRequest request,
 			HttpServletResponse response,
 			@Parameter(hidden = true) @PathVariable(value = "version") String version,
@@ -456,7 +479,8 @@ public class AuthoringController {
 							.findDialogue(project, dialogueName)
 							.orElseThrow(() -> new NotFoundException(
 									"Dialogue not found: " + dialogueName));
-					return draftDialogueService.listNodes(dialogue);
+					return draftDialogueService.listNodes(dialogue).stream()
+							.map(DraftNodeResponse::from).toList();
 				},
 				version, response, "", Permission.DIALOGUE_AUTHOR);
 	}
@@ -479,7 +503,7 @@ public class AuthoringController {
 	@Parameter(name = "version", hidden = true)
 	@PostMapping("/create-node")
 	@ResponseStatus(HttpStatus.CREATED)
-	public DBDraftNode createNode(
+	public DraftNodeResponse createNode(
 			HttpServletRequest request,
 			HttpServletResponse response,
 			@Parameter(hidden = true) @PathVariable(value = "version") String version,
@@ -490,8 +514,13 @@ public class AuthoringController {
 		return QueryRunner.runQuery(
 				(protocolVersion, user) -> {
 					logger.info("POST /v{}/authoring/create-node [user: {}]", version, user);
-					if (payload.getTitle() == null || payload.getTitle().isBlank())
-						throw new BadRequestException("Field 'title' is required.");
+					String header = headerFromTags(payload.getTags());
+					String title = Objects.requireNonNullElse(
+							DialogueBranchHeader.get(header, "title"), "");
+					if (!title.matches(DialogueBranchParser.NODE_NAME_REGEX)) {
+						throw new BadRequestException("The 'title' tag must be a valid node " +
+								"name (letters, digits, '_' and '-'), not '" + title + "'.");
+					}
 					DBProject project = projectService.findBySlug(projectSlug)
 							.orElseThrow(() -> new NotFoundException(
 									"Project not found: " + projectSlug));
@@ -500,9 +529,8 @@ public class AuthoringController {
 							.orElseThrow(() -> new NotFoundException(
 									"Dialogue not found: " + dialogueName));
 					checkNotDeleted(dialogue);
-					checkHeaderTitle(payload.getHeader(), payload.getTitle());
-					return draftDialogueService.createNode(dialogue, payload.getTitle(),
-							payload.getHeader(), payload.getBody());
+					return DraftNodeResponse.from(draftDialogueService.createNode(dialogue, title,
+							header, payload.getBody()));
 				},
 				version, response, "", Permission.DIALOGUE_AUTHOR);
 	}
@@ -525,7 +553,7 @@ public class AuthoringController {
 	@Operation(summary = "Update the header and body of a draft node.")
 	@Parameter(name = "version", hidden = true)
 	@PostMapping("/update-node")
-	public DBDraftNode updateNode(
+	public DraftNodeResponse updateNode(
 			HttpServletRequest request,
 			HttpServletResponse response,
 			@Parameter(hidden = true) @PathVariable(value = "version") String version,
@@ -548,9 +576,10 @@ public class AuthoringController {
 					DBDraftNode node = draftDialogueService.findNode(dialogue, nodeTitle)
 							.orElseThrow(() -> new NotFoundException(
 									"Node not found: " + nodeTitle));
-					checkHeaderTitle(payload.getHeader(), node.getTitle());
-					return draftDialogueService.updateNode(dialogue, node, payload.getHeader(),
-							payload.getBody());
+					String header = headerFromTags(payload.getTags());
+					checkHeaderTitle(header, node.getTitle());
+					return DraftNodeResponse.from(draftDialogueService.updateNode(dialogue, node,
+							header, payload.getBody()));
 				},
 				version, response, "", Permission.DIALOGUE_AUTHOR);
 	}
@@ -669,7 +698,7 @@ public class AuthoringController {
 			"in the project.")
 	@Parameter(name = "version", hidden = true)
 	@PostMapping("/rename-node")
-	public DraftDialogueService.RenameResult renameNode(
+	public RenameNodeResponse renameNode(
 			HttpServletRequest request,
 			HttpServletResponse response,
 			@Parameter(hidden = true) @PathVariable(value = "version") String version,
@@ -696,8 +725,10 @@ public class AuthoringController {
 					DBDraftNode node = draftDialogueService.findNode(dialogue, oldTitle)
 							.orElseThrow(() -> new NotFoundException(
 									"Node not found: " + oldTitle));
-					return draftDialogueService.renameNode(project, dialogue, node, newTitle,
-							updateReferences);
+					DraftDialogueService.RenameResult result = draftDialogueService.renameNode(
+							project, dialogue, node, newTitle, updateReferences);
+					return new RenameNodeResponse(DraftNodeResponse.from(result.getNode()),
+							result.getReferencesUpdated());
 				},
 				version, response, "", Permission.DIALOGUE_AUTHOR);
 	}

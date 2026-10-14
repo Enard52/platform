@@ -462,7 +462,21 @@ class DraftDialogueServiceTest {
 						"Shall I compare thee to a summer's day?\n"));
 		assertTrue(noSeparator.getMessage().contains("line 1"), noSeparator.getMessage());
 
+		IllegalArgumentException invalidHeader = assertThrows(IllegalArgumentException.class,
+				() -> draftDialogueService.createDialogueFromScript(project, "invalid-header",
+						"title: Start\n---\nHi.\n===\ntitle: Next\nnot a tag\n---\nBye.\n===\n"));
+		assertTrue(invalidHeader.getMessage().contains("line 5"), invalidHeader.getMessage());
+		assertTrue(invalidHeader.getMessage().contains("not a 'key: value' line"),
+				invalidHeader.getMessage());
+
+		IllegalArgumentException duplicate = assertThrows(IllegalArgumentException.class,
+				() -> draftDialogueService.createDialogueFromScript(project, "duplicate",
+						"title: Start\nspeaker: A\nspeaker: B\n---\nHi.\n===\n"));
+		assertTrue(duplicate.getMessage().contains("duplicate header key: speaker"),
+				duplicate.getMessage());
+
 		assertTrue(draftDialogueService.findDialogue(project, "no-title").isEmpty());
+		assertTrue(draftDialogueService.findDialogue(project, "invalid-header").isEmpty());
 		assertTrue(draftDialogueService.findDialogue(project, "no-separator").isEmpty());
 	}
 

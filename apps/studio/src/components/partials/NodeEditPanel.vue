@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useAuthoringClient } from '@/composables/client.js';
 import { describeError } from '@/composables/error-message.js';
 import { showError } from '@/composables/error-toast.js';
-import { parseHeaderTags, serializeHeaderTags } from '@/authoring/DlbHeaderTags.js';
+import { tagsToMap, mapToTags } from '@/authoring/DlbHeaderTags.js';
 import { COLOR_PALETTE, colorForId } from '@/composables/node-colors.js';
 import TextInput from '../widgets/TextInput.vue';
 import PushButton from '../widgets/PushButton.vue';
@@ -13,7 +13,7 @@ import PushButton from '../widgets/PushButton.vue';
 const NODE_NAME_REGEX = /^[A-Za-z0-9_-]+$/;
 
 const props = defineProps({
-    node: { type: Object, required: true }, // raw draft node: { title, header, body }
+    node: { type: Object, required: true }, // draft node: { title, tags, body }
     dialogueName: { type: String, required: true },
 });
 
@@ -40,7 +40,7 @@ function closePanel() {
 }
 
 function loadFromNode() {
-    const tags = parseHeaderTags(props.node.header);
+    const tags = tagsToMap(props.node.tags);
     title.value = props.node.title;
     speaker.value = tags.get('speaker') ?? '';
     colorId.value = tags.get('colorId') ?? '0';
@@ -67,7 +67,7 @@ function onSave() {
     saving.value = true;
 
     if (newTitle === props.node.title) {
-        saveContent(props.node.header, props.node.title, false);
+        saveContent(props.node.tags, props.node.title, false);
         return;
     }
 
@@ -86,16 +86,16 @@ function onSave() {
         });
 }
 
-function saveContent(baseHeader, nodeTitle, wasRenamed) {
-    // Parse whichever header is currently authoritative (the renamed node's, if a rename just
-    // happened, since only its title: line differs from props.node.header) and only overwrite
-    // the two fields this panel edits, preserving every other tag untouched.
-    const tags = parseHeaderTags(baseHeader);
+function saveContent(baseTags, nodeTitle, wasRenamed) {
+    // Start from whichever tags are currently authoritative (the renamed node's, if a rename just
+    // happened, since only its title tag differs from props.node.tags) and only overwrite the
+    // two fields this panel edits, keeping every other tag untouched.
+    const tags = tagsToMap(baseTags);
     tags.set('speaker', speaker.value);
     tags.set('colorId', String(colorId.value));
-    const header = serializeHeaderTags(tags);
 
-    client.updateDraftNode(state.value.selectedProject?.slug, props.dialogueName, nodeTitle, header, body.value)
+    client.updateDraftNode(state.value.selectedProject?.slug, props.dialogueName, nodeTitle,
+        mapToTags(tags), body.value)
         .then((updated) => {
             emit(wasRenamed ? 'renamed' : 'saved', updated);
         })
@@ -117,7 +117,7 @@ function performRename(newTitle, updateReferences) {
     client.renameDraftNode(state.value.selectedProject?.slug, props.dialogueName, props.node.title,
         newTitle, updateReferences)
         .then((result) => {
-            saveContent(result.node.header, newTitle, true);
+            saveContent(result.node.tags, newTitle, true);
         })
         .catch((err) => {
             saving.value = false;

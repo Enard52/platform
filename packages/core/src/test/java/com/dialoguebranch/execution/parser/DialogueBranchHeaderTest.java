@@ -30,6 +30,7 @@ package com.dialoguebranch.execution.parser;
 
 import com.dialoguebranch.exception.ParseException;
 import com.dialoguebranch.execution.parser.DialogueBranchHeader.LineKind;
+import com.dialoguebranch.execution.parser.DialogueBranchHeader.Tag;
 import com.dialoguebranch.i18n.SourceTranslatable;
 import com.dialoguebranch.i18n.TranslatableExtractor;
 import com.dialoguebranch.model.common.DialogueBranchConstants;
@@ -40,7 +41,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -107,15 +107,13 @@ public class DialogueBranchHeaderTest {
 
 	@Test
 	public void writeAndReadRoundTrip() {
-		Map<String, String> tags = new LinkedHashMap<>();
-		tags.put("title", "Start");
-		tags.put("speaker", "Robin");
-		tags.put("comment", "see https://example.com // really");
-		tags.put("tags", "");
+		List<Tag> tags = List.of(new Tag("title", "Start"), new Tag("speaker", "Robin"),
+				new Tag("comment", "see https://example.com // really"), new Tag("2", "a digit key"),
+				new Tag("tags", ""));
 		String header = DialogueBranchHeader.write(tags);
-		assertEquals("title: Start\nspeaker: Robin\ncomment: see https://example.com // really\ntags: ",
-				header);
-		assertEquals(tags, DialogueBranchHeader.read(header));
+		assertEquals("title: Start\nspeaker: Robin\ncomment: see https://example.com // really\n"
+				+ "2: a digit key\ntags: ", header);
+		assertEquals(tags, DialogueBranchHeader.readTags(header));
 	}
 
 	@Test
@@ -125,7 +123,19 @@ public class DialogueBranchHeaderTest {
 		assertThrows(IllegalArgumentException.class,
 				() -> DialogueBranchHeader.set("", "comment", "two\nlines"));
 		assertThrows(IllegalArgumentException.class,
-				() -> DialogueBranchHeader.write(Map.of("", "x")));
+				() -> DialogueBranchHeader.write(List.of(new Tag("", "x"))));
+		assertThrows(IllegalArgumentException.class,
+				() -> DialogueBranchHeader.write(List.of(new Tag("title", "A"), new Tag("title", "B"))));
+		assertThrows(IllegalArgumentException.class,
+				() -> DialogueBranchHeader.write(List.of(new Tag("title", null))));
+	}
+
+	@Test
+	public void checksAHeaderStrictly() {
+		assertTrue(DialogueBranchHeader.check("title: Start\n\nspeaker: Robin").isEmpty());
+		assertEquals(List.of("line 2: not a 'key: value' line", "line 3: invalid header key: // Note",
+				"line 4: empty header key", "line 5: duplicate header key: title"),
+				DialogueBranchHeader.check("title: Start\njust text\n// Note: x\n: v\ntitle: Again"));
 	}
 
 	// -------------------- How the parser applies it -------------------- //

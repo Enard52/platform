@@ -9,6 +9,20 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ### Changed
 
+- **Breaking:** Web service: the authoring end-points exchange a draft node's header as tags
+  instead of text ([#350](https://github.com/dialoguebranch/platform/issues/350)). `list-nodes`,
+  `create-node`, `update-node` and `rename-node` return a node as `{id, title, tags, body,
+  createdAt, updatedAt}`, where `tags` is an ordered list of `{key, value}` pairs, instead of with
+  a `header` string. `create-node` and `update-node` take `{tags, body}`: `create-node` no longer
+  has a separate `title` (the node's title is its `title` tag, which must be a valid node name),
+  and `update-node` replaces all of a node's tags. Tags that don't form a valid header (an invalid
+  key, a key used twice, a value on more than one line) are refused with a `400`, and so is a
+  script whose node headers aren't valid tags when it is stored as draft content (for example in a
+  project import). In client-js, `createDraftNode(projectSlug, dialogueName, tags, body)` and
+  `updateDraftNode(projectSlug, dialogueName, nodeTitle, tags, body)` take tags, and
+  `renameDraftNode` resolves to `{node, referencesUpdated}`. Studio no longer reads or writes
+  header text itself.
+
 - **Breaking:** Language: a node header is now a model, a list of `key: value` tags and nothing
   else ([#343](https://github.com/dialoguebranch/platform/issues/343)). `//` no longer starts a
   comment in a header: it is part of the value, so `image: https://...` needs no escape there. A

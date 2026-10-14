@@ -34,47 +34,37 @@
 export const RESERVED_HEADER_TAGS = ['title', 'speaker', 'position', 'colorId', 'comment'];
 
 /**
- * Parses a raw `.dlb` node header (the block of `key: value` lines above the `---` separator)
- * into an ordered Map of tag name to value, following core's `DialogueBranchHeader.read`: the
- * *first* `:` splits key from value (both trimmed), `//` has no special meaning (it is part of the
- * value), lines without a `:` or with an empty key are skipped, and if a key appears more than
- * once, the first occurrence wins.
+ * Turns a node's header tags, as the Web Service sends them (an ordered list of `{ key, value }`,
+ * see `DialogueBranchAuthoringClient.listDraftNodes`), into an ordered Map of tag name to value,
+ * for looking up and changing tags. If a key appears more than once, its first occurrence wins.
  *
- * @param {string} sourceCode the raw header source.
- * @returns {Map<string,string>} the parsed tags, in the order they first appeared.
+ * @param {{key: string, value: string}[]} tags the node's header tags.
+ * @returns {Map<string,string>} the tags, in order.
  */
-export function parseHeaderTags(sourceCode) {
-    const tags = new Map();
-    if (!sourceCode) return tags;
-
-    for (const line of sourceCode.split(/\r\n|\r|\n/)) {
-        const sep = line.indexOf(':');
-        if (sep < 0) continue;
-        const key = line.slice(0, sep).trim();
-        const value = line.slice(sep + 1).trim();
-        if (!key) continue;
-        if (tags.has(key)) continue; // first occurrence wins
-        tags.set(key, value);
+export function tagsToMap(tags) {
+    const map = new Map();
+    for (const { key, value } of tags ?? []) {
+        if (!map.has(key)) map.set(key, value);
     }
-    return tags;
+    return map;
 }
 
 /**
- * Serializes a Map of tag name to value back into a raw `.dlb` node header, one `key: value` line
- * per entry, in Map iteration order.
+ * Turns an ordered Map of tag name to value back into the list of `{ key, value }` tags the Web
+ * Service takes (see `DialogueBranchAuthoringClient.updateDraftNode`), in Map order.
  *
- * @param {Map<string,string>} tags the tags to serialize.
- * @returns {string} the raw header source.
+ * @param {Map<string,string>} map the tags.
+ * @returns {{key: string, value: string}[]} the tags, in order.
  */
-export function serializeHeaderTags(tags) {
-    return [...tags.entries()].map(([key, value]) => `${key}: ${value}`).join('\n');
+export function mapToTags(map) {
+    return [...map.entries()].map(([key, value]) => ({ key, value }));
 }
 
 /**
- * Parses the `position: x,y` tag (if present and well-formed) into a `{ x, y }` pair. Matches
- * EditableHeader.getX()/getY(): missing or malformed values default to 0.
+ * Reads the `position: x,y` tag (if present and well-formed) into a `{ x, y }` pair. Missing or
+ * malformed values default to 0.
  *
- * @param {Map<string,string>} tags the parsed header tags.
+ * @param {Map<string,string>} tags the header tags (see {@link tagsToMap}).
  * @returns {{x: number, y: number}} the node's canvas position.
  */
 export function getPosition(tags) {

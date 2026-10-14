@@ -1,30 +1,40 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseHeaderTags, serializeHeaderTags, getPosition, setPosition, RESERVED_HEADER_TAGS } from './DlbHeaderTags.js';
+import { tagsToMap, mapToTags, getPosition, setPosition, RESERVED_HEADER_TAGS } from './DlbHeaderTags.js';
 
-describe('parseHeaderTags', () => {
-    it('keeps // as part of a value', () => {
-        const tags = parseHeaderTags('title: Start\nimage: https://example.com/a.png // not a comment');
-        expect(tags.get('image')).toBe('https://example.com/a.png // not a comment');
+const TAGS = [
+    { key: 'title', value: 'Start' },
+    { key: '2', value: 'a digit key' },
+    { key: 'comment', value: 'see https://example.com // kept' },
+];
+
+describe('tagsToMap and mapToTags', () => {
+    it('keep the order of tags, even for number-like keys', () => {
+        const map = tagsToMap(TAGS);
+        expect([...map.keys()]).toEqual(['title', '2', 'comment']);
+        expect(mapToTags(map)).toEqual(TAGS);
     });
 
-    it('splits at the first colon, trims, and lets the first occurrence win', () => {
-        const tags = parseHeaderTags('title:  Start \r\ntime: 10:30\nnot a tag\ntitle: Ignored');
-        expect([...tags.entries()]).toEqual([['title', 'Start'], ['time', '10:30']]);
-    });
-
-    it('round-trips through serializeHeaderTags', () => {
-        const header = 'title: Start\nspeaker: Robin\ncomment: see https://example.com';
-        expect(serializeHeaderTags(parseHeaderTags(header))).toBe(header);
+    it('lets the first occurrence of a key win, and treats no tags as none', () => {
+        const map = tagsToMap([{ key: 'title', value: 'A' }, { key: 'title', value: 'B' }]);
+        expect(map.get('title')).toBe('A');
+        expect(tagsToMap(undefined).size).toBe(0);
     });
 });
 
 describe('position', () => {
-    it('reads and sets the position tag', () => {
-        const tags = parseHeaderTags('title: Start\nposition: 10,20');
-        expect(getPosition(tags)).toEqual({ x: 10, y: 20 });
-        expect(serializeHeaderTags(setPosition(tags, 30.4, 40.6))).toBe('title: Start\nposition: 30,41');
+    it('reads and sets the position tag, keeping the other tags in place', () => {
+        const map = tagsToMap([...TAGS, { key: 'position', value: '10,20' }]);
+        expect(getPosition(map)).toEqual({ x: 10, y: 20 });
+        const tags = mapToTags(setPosition(map, 30.4, 40.6));
+        expect(tags.map((tag) => tag.key)).toEqual(['title', '2', 'comment', 'position']);
+        expect(tags[3].value).toBe('30,41');
+    });
+
+    it('defaults a missing or malformed position to 0,0', () => {
+        expect(getPosition(tagsToMap([]))).toEqual({ x: 0, y: 0 });
+        expect(getPosition(tagsToMap([{ key: 'position', value: 'x' }]))).toEqual({ x: 0, y: 0 });
     });
 });
 

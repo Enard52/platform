@@ -28,8 +28,12 @@
 
 package com.dialoguebranch.web.service.controller.schema.authoring;
 
+import com.dialoguebranch.execution.parser.DialogueBranchHeader.Tag;
+
+import java.util.List;
+
 /**
- * Request payload for updating the header and body of a draft node.
+ * Request payload for updating a draft node: its complete header as tags (#350), and its body.
  *
  * @author Harm op den Akker
  */
@@ -38,35 +42,35 @@ public class UpdateNodePayload {
 	/** Creates a new, empty {@link UpdateNodePayload}. */
 	public UpdateNodePayload() { }
 
-	private String header;
+	private List<Tag> tags;
 	private String body;
 
 	/**
-	 * Returns the raw header text to update the draft node with.
+	 * Returns the header tags of the draft node, in order.
 	 *
-	 * @return the raw header text (the {@code key: value} block above the {@code ---} separator)
-	 * to update the draft node with.
+	 * @return the header tags.
 	 */
-	public String getHeader() { return header; }
+	public List<Tag> getTags() { return tags; }
 
 	/**
-	 * Sets the raw header text to update the draft node with.
+	 * Sets the header tags of the draft node, in order.
 	 *
-	 * @param header the raw header text to update the draft node with.
+	 * @param tags the header tags.
 	 */
-	public void setHeader(String header) { this.header = header; }
+	public void setTags(List<Tag> tags) { this.tags = tags; }
 
 	/**
-	 * Returns the raw body text to update the draft node with.
+	 * Returns the raw body text of the draft node.
 	 *
-	 * @return the raw body text to update the draft node with.
+	 * @return the raw body text.
 	 */
 	public String getBody() { return body; }
 
 	/**
-	 * Sets the raw body text to update the draft node with.
+	 * Sets the raw body text of the draft node.
 	 *
-	 * @param body the raw body text to update the draft node with.
+	 * @param body the raw body text.
 	 */
 	public void setBody(String body) { this.body = body; }
+
 }

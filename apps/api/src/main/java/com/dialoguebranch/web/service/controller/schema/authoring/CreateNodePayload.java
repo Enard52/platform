@@ -28,8 +28,13 @@
 
 package com.dialoguebranch.web.service.controller.schema.authoring;
 
+import com.dialoguebranch.execution.parser.DialogueBranchHeader.Tag;
+
+import java.util.List;
+
 /**
- * Request payload for creating a new draft node.
+ * Request payload for creating a new draft node: its header as tags (#350), and its body. The
+ * node's title is its {@code title} tag.
  *
  * @author Harm op den Akker
  */
@@ -38,50 +43,35 @@ public class CreateNodePayload {
 	/** Creates a new, empty {@link CreateNodePayload}. */
 	public CreateNodePayload() { }
 
-	private String title;
-	private String header;
+	private List<Tag> tags;
 	private String body;
 
 	/**
-	 * Returns the title of the draft node to create.
+	 * Returns the header tags of the draft node to create, in order.
 	 *
-	 * @return the title of the draft node to create.
+	 * @return the header tags.
 	 */
-	public String getTitle() { return title; }
+	public List<Tag> getTags() { return tags; }
 
 	/**
-	 * Sets the title of the draft node to create.
+	 * Sets the header tags of the draft node to create, in order.
 	 *
-	 * @param title the title of the draft node to create.
+	 * @param tags the header tags.
 	 */
-	public void setTitle(String title) { this.title = title; }
-
-	/**
-	 * Returns the raw header text of the draft node to create.
-	 *
-	 * @return the raw header text (the {@code key: value} block above the {@code ---} separator)
-	 * of the draft node to create.
-	 */
-	public String getHeader() { return header; }
-
-	/**
-	 * Sets the raw header text of the draft node to create.
-	 *
-	 * @param header the raw header text of the draft node to create.
-	 */
-	public void setHeader(String header) { this.header = header; }
+	public void setTags(List<Tag> tags) { this.tags = tags; }
 
 	/**
 	 * Returns the raw body text of the draft node to create.
 	 *
-	 * @return the raw body text of the draft node to create.
+	 * @return the raw body text.
 	 */
 	public String getBody() { return body; }
 
 	/**
 	 * Sets the raw body text of the draft node to create.
 	 *
-	 * @param body the raw body text of the draft node to create.
+	 * @param body the raw body text.
 	 */
 	public void setBody(String body) { this.body = body; }
+
 }
