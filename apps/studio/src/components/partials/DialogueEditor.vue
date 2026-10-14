@@ -1,6 +1,6 @@
 <script setup>
 import { ref, inject, watch, computed, useTemplateRef } from 'vue';
-import { VueFlow, MarkerType, BaseEdge, getStraightPath, useVueFlow } from '@vue-flow/core';
+import { VueFlow, Panel, MarkerType, BaseEdge, getStraightPath, useVueFlow } from '@vue-flow/core';
 import '@vue-flow/core/dist/style.css';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useAuthoringClient } from '@/composables/client.js';
@@ -11,6 +11,7 @@ import { extractReplyLinks } from '@/authoring/DlbReplyLinks.js';
 import { colorForId } from '@/composables/node-colors.js';
 import { useLatestRequest } from '@/composables/latest-request.js';
 import NodeEditPanel from './NodeEditPanel.vue';
+import PreambleBar from './PreambleBar.vue';
 
 // Pure content component — no header of its own. It's only ever embedded in
 // DialogueWorkspace.vue's "edit" mode, whose own header (with the balloon/text/edit
@@ -369,6 +370,10 @@ defineExpose({
             @nodes-initialized="onNodesInitialized"
             @pane-context-menu="onPaneContextMenu"
         >
+            <Panel position="top-left">
+                <PreambleBar :dialogue-name="dialogueName" @saved="emit('dialogueSaved')" />
+            </Panel>
+
             <template #node-dialogueNode="{ data }">
                 <div
                     class="rounded-lg shadow bg-white min-w-[150px] max-w-[210px] overflow-hidden cursor-pointer hover:shadow-md"

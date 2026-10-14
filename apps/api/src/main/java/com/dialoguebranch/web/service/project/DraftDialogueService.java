@@ -309,6 +309,35 @@ public class DraftDialogueService {
 	}
 
 	/**
+	 * Replaces the preamble of a draft dialogue (#345): the comment lines at the start of its
+	 * script. Blank lines are left out; every other line must be a {@code //} comment line.
+	 *
+	 * @param dialogue the draft dialogue.
+	 * @param preamble the new preamble; {@code null} or blank for none.
+	 * @return the stored preamble: its comment lines joined with LF.
+	 * @throws IllegalArgumentException if a non-blank line isn't a comment line.
+	 */
+	@Transactional
+	public String updatePreamble(DBDraftDialogue dialogue, String preamble) {
+		List<String> lines = new ArrayList<>();
+		if (preamble != null) {
+			String[] input = preamble.split("\r\n|\r|\n", -1);
+			for (int i = 0; i < input.length; i++) {
+				if (input[i].isBlank()) continue;
+				if (!DialogueBranchScriptSplitter.isCommentLine(input[i])) {
+					throw new IllegalArgumentException("Line " + (i + 1) + " of the preamble " +
+							"isn't a comment line (it must start with //): " + input[i]);
+				}
+				lines.add(input[i]);
+			}
+		}
+		String stored = String.join("\n", lines);
+		dialogue.setPreamble(stored);
+		markChanged(dialogue);
+		return stored;
+	}
+
+	/**
 	 * Marks the given draft dialogue as having unpublished changes, and persists it. Called by
 	 * every operation that mutates a dialogue's effective content (node create/update/delete/
 	 * rename, or a sibling dialogue's rename rewriting one of its references).
