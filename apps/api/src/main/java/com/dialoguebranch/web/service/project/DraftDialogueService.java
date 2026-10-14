@@ -30,6 +30,8 @@ package com.dialoguebranch.web.service.project;
 
 import com.dialoguebranch.exception.ParseException;
 import com.dialoguebranch.execution.parser.DialogueBranchParser;
+import com.dialoguebranch.execution.parser.DialogueBranchScriptSplitter;
+import com.dialoguebranch.execution.parser.DialogueBranchScriptSplitter.RawNode;
 import com.dialoguebranch.execution.parser.ParserResult;
 import com.dialoguebranch.i18n.SourceTranslatable;
 import com.dialoguebranch.i18n.Translatable;
@@ -53,7 +55,6 @@ import com.dialoguebranch.web.service.storage.model.DBDraftNode;
 import com.dialoguebranch.web.service.storage.model.DBDraftTranslation;
 import com.dialoguebranch.web.service.storage.model.DBDraftTranslationLanguage;
 import com.dialoguebranch.web.service.storage.model.DBProject;
-import com.dialoguebranch.web.service.storage.model.DBPublishedDialogue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -68,6 +69,7 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -158,37 +160,43 @@ public class DraftDialogueService {
 
 	/**
 	 * Creates a new draft dialogue in {@code project} named {@code name}, populated by splitting
-	 * the given full {@code .dlb} script {@code content} into per-node header/body pairs
-	 * (mirroring the inverse of {@link #reconstructScript}) and creating a {@link DBDraftNode} for
-	 * each. Used to seed a project's initial drafts directly from its {@code .dlb} source files
-	 * (see {@code ProjectSeedService}), before they're published for the first time.
+	 * the given full {@code .dlb} script {@code content} into nodes with {@link
+	 * DialogueBranchScriptSplitter} and creating a {@link DBDraftNode} for each. Used to seed a
+	 * project's initial drafts directly from its {@code .dlb} source files (see {@code
+	 * ProjectSeedService}), before they're published for the first time.
 	 *
 	 * @param project the owning project.
 	 * @param name    the dialogue name.
 	 * @param content the full {@code .dlb} script content to populate the new draft from.
 	 * @return the newly created {@link DBDraftDialogue}.
+	 * @throws IllegalArgumentException if a node has no header separator or no {@code title}, so
+	 * the script can't be stored as draft nodes without losing content.
 	 */
 	@Transactional
 	public DBDraftDialogue createDialogueFromScript(DBProject project, String name,
 													String content) {
+		List<RawNode> rawNodes = DialogueBranchScriptSplitter.split(content);
+		for (RawNode rawNode : rawNodes) {
+			if (!rawNode.hasBody()) {
+				throw new IllegalArgumentException("Dialogue '" + name + "', line " +
+						rawNode.startLine() + ": node has no '" +
+						DialogueBranchConstants.DLB_HEADER_SEPARATOR + "' line.");
+			}
+			String title = extractHeaderTag(rawNode.header(), "title");
+			if (title == null || title.isEmpty()) {
+				throw new IllegalArgumentException("Dialogue '" + name + "', line " +
+						rawNode.startLine() + ": node has no 'title'.");
+			}
+		}
 		DBDraftDialogue dialogue = createDialogue(project, name);
-		List<String[]> nodeBlocks = splitPublishedScript(content);
 		Instant now = Instant.now();
 		int index = 0;
-		for (String[] block : nodeBlocks) {
-			String header = block[0];
-			String body = block[1];
-			String title = extractHeaderTag(header, "title");
-			if (title == null || title.isEmpty()) {
-				logger.warn("Skipping a node with no 'title' tag while creating draft dialogue " +
-						"'{}' (project '{}') from script content.", name, project.getSlug());
-				continue;
-			}
+		for (RawNode rawNode : rawNodes) {
 			DBDraftNode node = new DBDraftNode();
 			node.setDraftDialogue(dialogue);
-			node.setTitle(title);
-			node.setHeader(header);
-			node.setBody(body);
+			node.setTitle(extractHeaderTag(rawNode.header(), "title"));
+			node.setHeader(rawNode.header());
+			node.setBody(rawNode.body());
 			// Strictly increasing timestamps preserve the source script's node order when nodes
 			// are later re-read via findByDraftDialogueOrderByCreatedAt.
 			node.setCreatedAt(now.plus(index, ChronoUnit.MILLIS));
@@ -1119,53 +1127,19 @@ public class DraftDialogueService {
 	// ---------------------------------------------------------------- //
 
 	/**
-	 * Reconstructs the full {@code .dlb} script content for the given draft dialogue by
-	 * concatenating the header and body of each node (ordered by creation time) in the standard
-	 * Dialogue Branch node format.
+	 * Reconstructs the full {@code .dlb} script content for the given draft dialogue by joining
+	 * its nodes (ordered by creation time) with {@link DialogueBranchScriptSplitter#join}, the
+	 * inverse of how {@link #createDialogueFromScript} splits a script.
 	 *
 	 * @param dialogue the draft dialogue to reconstruct.
 	 * @return the reconstructed {@code .dlb} script as a string.
 	 */
 	public String reconstructScript(DBDraftDialogue dialogue) {
-		List<DBDraftNode> nodes = nodeRepository.findByDraftDialogueOrderByCreatedAt(dialogue);
-		StringBuilder script = new StringBuilder();
-		for (DBDraftNode node : nodes) {
-			script.append(node.getHeader()).append("\n");
-			script.append(DialogueBranchConstants.DLB_HEADER_SEPARATOR).append("\n");
-			script.append(node.getBody()).append("\n");
-			script.append(DialogueBranchConstants.DLB_NODE_SEPARATOR).append("\n");
+		List<RawNode> rawNodes = new ArrayList<>();
+		for (DBDraftNode node : nodeRepository.findByDraftDialogueOrderByCreatedAt(dialogue)) {
+			rawNodes.add(new RawNode(node.getHeader(), Objects.requireNonNullElse(node.getBody(), ""), 0));
 		}
-		return script.toString();
-	}
-
-	/**
-	 * Splits a full {@code .dlb} script (as produced by {@link #reconstructScript}, i.e. the
-	 * {@code content} of a {@link DBPublishedDialogue}) back into its per-node {@code {header,
-	 * body}} pairs, mirroring the exact {@code "{header}\n---\n{body}\n===\n"} format that method
-	 * writes.
-	 *
-	 * @param content the full script content to split.
-	 * @return a list of {@code [header, body]} pairs, one per node, in their original order.
-	 */
-	private List<String[]> splitPublishedScript(String content) {
-		List<String[]> blocks = new ArrayList<>();
-		if (content == null) return blocks;
-		String nodeSeparator = "\n" + DialogueBranchConstants.DLB_NODE_SEPARATOR + "\n";
-		String headerSeparator = "\n" + DialogueBranchConstants.DLB_HEADER_SEPARATOR + "\n";
-		for (String rawNode : content.split(Pattern.quote(nodeSeparator))) {
-			if (rawNode.isBlank()) continue;
-			int sep = rawNode.indexOf(headerSeparator);
-			if (sep < 0) {
-				logger.warn("Skipping an unparseable node block (no '{}' separator found) while " +
-						"splitting a published dialogue script.",
-						DialogueBranchConstants.DLB_HEADER_SEPARATOR);
-				continue;
-			}
-			String header = rawNode.substring(0, sep);
-			String body = rawNode.substring(sep + headerSeparator.length());
-			blocks.add(new String[] { header, body });
-		}
-		return blocks;
+		return DialogueBranchScriptSplitter.join(rawNodes);
 	}
 
 	/**

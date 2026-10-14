@@ -230,11 +230,11 @@ public class DialogueBranchParser implements AutoCloseable {
 			int lineNum = reader.getLineNum();
 			String line = readLine();
 			while (line != null && inHeader) {
-				if (getContent(line).equals(DialogueBranchConstants.DLB_NODE_SEPARATOR)) {
+				if (DialogueBranchScriptSplitter.isNodeSeparator(line)) {
 					result.readNodeEnd = true;
 					throw new LineNumberParseException(
 							"End of header not found", lineNum, 1);
-				} else if (getContent(line).equals(DialogueBranchConstants.DLB_HEADER_SEPARATOR)) {
+				} else if (DialogueBranchScriptSplitter.isHeaderSeparator(line)) {
 					inHeader = false;
 				} else {
 					parseHeaderLine(headerMap, line, lineNum, nodeState);
@@ -258,7 +258,7 @@ public class DialogueBranchParser implements AutoCloseable {
 			line = readLine();
 			List<BodyToken> bodyTokens = new ArrayList<>();
 			while (line != null && inBody) {
-				if (getContent(line).equals(DialogueBranchConstants.DLB_NODE_SEPARATOR)) {
+				if (DialogueBranchScriptSplitter.isNodeSeparator(line)) {
 					inBody = false;
 					result.readNodeEnd = true;
 				} else {
@@ -331,7 +331,7 @@ public class DialogueBranchParser implements AutoCloseable {
 	private void moveToNextNode() throws IOException {
 		String line;
 		while ((line = readLine()) != null) {
-			if (getContent(line).equals(DialogueBranchConstants.DLB_NODE_SEPARATOR))
+			if (DialogueBranchScriptSplitter.isNodeSeparator(line))
 				return;
 		}
 	}
@@ -406,21 +406,6 @@ public class DialogueBranchParser implements AutoCloseable {
 			}
 		}
 		return new NodeHeader(title, speaker, headerMap);
-	}
-
-	/**
-	 * Removes a possible comment, and leading and trailing white space from a string. This should
-	 * not be used for body lines, because this method does not check whether a comment marker (//)
-	 * is inside a string literal.
-	 *
-	 * @param s the string
-	 * @return the content
-	 */
-	private String getContent(String s) {
-		int commentIndex = s.indexOf("//");
-		if (commentIndex != -1)
-			s = s.substring(0, commentIndex);
-		return s.trim();
 	}
 
 	/**
