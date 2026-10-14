@@ -86,6 +86,15 @@ public final class DialogueBranchHeader {
 	}
 
 	/**
+	 * One tag of a header.
+	 *
+	 * @param key   the tag key.
+	 * @param value the tag value.
+	 */
+	public record Tag(String key, String value) {
+	}
+
+	/**
 	 * Reads one header line.
 	 *
 	 * @param line a single line, without its line ending.
@@ -130,6 +139,49 @@ public final class DialogueBranchHeader {
 	}
 
 	/**
+	 * Reads the tags of a header as a list, in order, leniently as {@link #read}.
+	 *
+	 * @param header the header text; {@code null} is treated as empty.
+	 * @return the tags, in the order they first occur.
+	 */
+	public static List<Tag> readTags(@Nullable String header) {
+		List<Tag> tags = new ArrayList<>();
+		for (Map.Entry<String, String> tag : read(header).entrySet())
+			tags.add(new Tag(tag.getKey(), tag.getValue()));
+		return tags;
+	}
+
+	/**
+	 * Checks a header strictly: every non-blank line must be a valid tag, and no key may occur
+	 * more than once. This checks the header's structure only, not which tags a node needs.
+	 *
+	 * @param header the header text; {@code null} is treated as empty.
+	 * @return the problems found, each starting with the 1-based line number within the header;
+	 * empty if there are none.
+	 */
+	public static List<String> check(@Nullable String header) {
+		List<String> problems = new ArrayList<>();
+		List<String> keys = new ArrayList<>();
+		List<String> lines = lines(header);
+		for (int i = 0; i < lines.size(); i++) {
+			Line line = readLine(lines.get(i));
+			String where = "line " + (i + 1) + ": ";
+			switch (line.kind()) {
+				case BLANK -> { }
+				case NO_SEPARATOR -> problems.add(where + "not a 'key: value' line");
+				case EMPTY_KEY -> problems.add(where + "empty header key");
+				case INVALID_KEY -> problems.add(where + "invalid header key: " + line.key());
+				case TAG -> {
+					if (keys.contains(line.key()))
+						problems.add(where + "duplicate header key: " + line.key());
+					keys.add(line.key());
+				}
+			}
+		}
+		return problems;
+	}
+
+	/**
 	 * Returns the value of one tag of a header (its first occurrence).
 	 *
 	 * @param header the header text; {@code null} is treated as empty.
@@ -168,22 +220,29 @@ public final class DialogueBranchHeader {
 
 	/**
 	 * Writes tags as header text: one {@code key: value} line per tag, in their order, joined with
-	 * LF. Reading the result with {@link #read} gives back the same tags.
+	 * LF. Reading the result with {@link #readTags} gives back the same tags.
 	 *
 	 * @param tags the tags to write.
 	 * @return the header text.
-	 * @throws IllegalArgumentException if a key isn't valid, or a value contains a line break.
+	 * @throws IllegalArgumentException if a key isn't valid or occurs more than once, or a value
+	 * contains a line break.
 	 */
-	public static String write(Map<String, String> tags) {
+	public static String write(List<Tag> tags) {
 		List<String> lines = new ArrayList<>();
-		for (Map.Entry<String, String> tag : tags.entrySet()) {
-			checkTag(tag.getKey(), tag.getValue());
-			lines.add(tag.getKey() + ": " + tag.getValue().trim());
+		List<String> keys = new ArrayList<>();
+		for (Tag tag : tags) {
+			checkTag(tag.key(), tag.value());
+			if (keys.contains(tag.key()))
+				throw new IllegalArgumentException("Duplicate header key: " + tag.key());
+			keys.add(tag.key());
+			lines.add(tag.key() + ": " + tag.value().trim());
 		}
 		return String.join("\n", lines);
 	}
 
-	private static void checkTag(String key, String value) {
+	private static void checkTag(@Nullable String key, @Nullable String value) {
+		if (key == null || value == null)
+			throw new IllegalArgumentException("A header tag needs a key and a value");
 		if (!key.matches(KEY_REGEX))
 			throw new IllegalArgumentException("Invalid header key: " + key);
 		if (value.contains("\n") || value.contains("\r"))

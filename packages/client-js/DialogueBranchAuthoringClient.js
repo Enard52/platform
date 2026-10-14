@@ -598,8 +598,10 @@ export class DialogueBranchAuthoringClient extends BaseClient {
     }
 
     /**
-     * Lists a draft dialogue's nodes — the raw editable content (title, speaker, header tags,
-     * body text) rather than a parsed/executable form.
+     * Lists a draft dialogue's nodes: the editable content, not a parsed/executable form. Each
+     * node is `{ id, title, tags, body, createdAt, updatedAt }`, where `tags` is its header as an
+     * ordered list of `{ key, value }` pairs (the reserved tags `title`/`speaker`/`position`/
+     * `colorId`/`comment`, plus any custom ones), and `body` its raw `.dlb` body text.
      *
      * @param {string} projectSlug The project's slug.
      * @param {string} dialogueName The dialogue's name.
@@ -616,43 +618,43 @@ export class DialogueBranchAuthoringClient extends BaseClient {
     }
 
     /**
-     * Creates a new node in a draft dialogue.
+     * Creates a new node in a draft dialogue. Its title is its `title` tag, which must be a valid
+     * node name, unique within the dialogue.
      *
      * @param {string} projectSlug The project's slug.
      * @param {string} dialogueName The dialogue's name.
-     * @param {string} title The new node's title (unique within the dialogue).
-     * @param {string} header The node's raw `key: value` header block (the reserved tags
-     * `title`/`speaker`/`position`/`colorId`, plus any custom ones) — a string, not a parsed
-     * object.
+     * @param {{key: string, value: string}[]} tags The node's header as an ordered list of tags
+     * (see {@link listDraftNodes}). Keys consist of letters, digits, `_` and `-`, may each occur
+     * once, and values are a single line.
      * @param {string} body The node's raw `.dlb` body text (statement + `[[reply]]` lines,
      * commands, …).
-     * @returns {Promise<Object>} The created node.
+     * @returns {Promise<Object>} The created node (see {@link listDraftNodes}).
      */
-    createDraftNode(projectSlug, dialogueName, title, header, body) {
+    createDraftNode(projectSlug, dialogueName, tags, body) {
         const url = this._baseUrl + "/authoring/create-node?projectSlug=" + encodeURIComponent(projectSlug)
             + "&dialogueName=" + encodeURIComponent(dialogueName);
 
         return this._fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, header, body }),
+            body: JSON.stringify({ tags, body }),
         }).then((response) => this._handleResponse(response));
     }
 
     /**
-     * Updates an existing node's header and body — the two are always replaced together (there's
-     * no partial-update variant).
+     * Updates an existing node's header tags and body. Both are replaced as a whole: send all of
+     * the node's tags, not only the changed ones.
      *
      * @param {string} projectSlug The project's slug.
      * @param {string} dialogueName The dialogue's name.
      * @param {string} nodeTitle The node's current title.
-     * @param {string} header The node's new raw `key: value` header block (see
-     * {@link createDraftNode}). To rename the node itself, use {@link renameDraftNode} instead —
-     * changing the `title` tag here does not rename it.
+     * @param {{key: string, value: string}[]} tags The node's complete new header tags (see
+     * {@link createDraftNode}). Its `title` tag must stay the node's current title: to rename the
+     * node, use {@link renameDraftNode}.
      * @param {string} body The node's new raw `.dlb` body text.
-     * @returns {Promise<Object>} The updated node.
+     * @returns {Promise<Object>} The updated node (see {@link listDraftNodes}).
      */
-    updateDraftNode(projectSlug, dialogueName, nodeTitle, header, body) {
+    updateDraftNode(projectSlug, dialogueName, nodeTitle, tags, body) {
         const url = this._baseUrl + "/authoring/update-node?projectSlug=" + encodeURIComponent(projectSlug)
             + "&dialogueName=" + encodeURIComponent(dialogueName)
             + "&nodeTitle=" + encodeURIComponent(nodeTitle);
@@ -660,7 +662,7 @@ export class DialogueBranchAuthoringClient extends BaseClient {
         return this._fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ header, body }),
+            body: JSON.stringify({ tags, body }),
         }).then((response) => this._handleResponse(response));
     }
 
@@ -716,7 +718,8 @@ export class DialogueBranchAuthoringClient extends BaseClient {
      * elsewhere in the dialogue (or project, for cross-dialogue links) that pointed at the old
      * title (see {@link findNodeReferences} to preview which links those are). If `false`, those
      * links are left pointing at the old title and will dangle.
-     * @returns {Promise<void>}
+     * @returns {Promise<{node: Object, referencesUpdated: number}>} The renamed node (see
+     * {@link listDraftNodes}) and how many references to it were updated.
      */
     renameDraftNode(projectSlug, dialogueName, oldTitle, newTitle, updateReferences) {
         const url = this._baseUrl + "/authoring/rename-node?projectSlug=" + encodeURIComponent(projectSlug)

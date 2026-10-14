@@ -6,7 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { useAuthoringClient } from '@/composables/client.js';
 import { describeError } from '@/composables/error-message.js';
 import { showError, dismissError } from '@/composables/error-toast.js';
-import { parseHeaderTags, serializeHeaderTags, getPosition, setPosition } from '@/authoring/DlbHeaderTags.js';
+import { tagsToMap, mapToTags, getPosition, setPosition } from '@/authoring/DlbHeaderTags.js';
 import { extractReplyLinks } from '@/authoring/DlbReplyLinks.js';
 import { colorForId } from '@/composables/node-colors.js';
 import { useLatestRequest } from '@/composables/latest-request.js';
@@ -116,9 +116,9 @@ const loading = ref(false);
 const flowNodes = ref([]);
 const flowEdges = ref([]);
 
-// Raw DBDraftNode rows keyed by title, kept in sync with the server so position/content edits
-// can reconstruct a node's full header (parse → mutate one field → re-serialize) without
-// clobbering any other tags already on it.
+// Draft nodes as the server returns them ({ title, tags, body, ... }), keyed by title and kept in
+// sync with the server, so a position edit can send the node's complete tags with only its
+// position changed.
 const rawNodesByTitle = ref(new Map());
 
 function buildGraph(nodes) {
@@ -126,7 +126,7 @@ function buildGraph(nodes) {
 
     const parsedByTitle = new Map();
     nodes.forEach((node, index) => {
-        const tags = parseHeaderTags(node.header);
+        const tags = tagsToMap(node.tags);
         const hasPosition = tags.has('position');
         const position = hasPosition
             ? getPosition(tags)
@@ -238,12 +238,10 @@ function onNodesInitialized() {
 function onNodeDragStop({ node }) {
     const rawNode = rawNodesByTitle.value.get(node.id);
     if (!rawNode) return;
-    const tags = parseHeaderTags(rawNode.header);
-    setPosition(tags, node.position.x, node.position.y);
-    const newHeader = serializeHeaderTags(tags);
+    const tags = setPosition(tagsToMap(rawNode.tags), node.position.x, node.position.y);
     dismissError();
     client.updateDraftNode(state.value.selectedProject?.slug, props.dialogueName, node.id,
-        newHeader, rawNode.body)
+        mapToTags(tags), rawNode.body)
         .then((updated) => {
             rawNodesByTitle.value.set(node.id, updated);
             emit('nodeChanged', node.id);
@@ -284,11 +282,11 @@ function addNode(position) {
         x = (index % GRID_COLUMNS) * GRID_SPACING_X;
         y = Math.floor(index / GRID_COLUMNS) * GRID_SPACING_Y;
     }
-    const header = serializeHeaderTags(setPosition(new Map([['title', title]]), x, y));
+    const tags = mapToTags(setPosition(new Map([['title', title]]), x, y));
 
     creatingNode.value = true;
     dismissError();
-    client.createDraftNode(state.value.selectedProject?.slug, props.dialogueName, title, header, '')
+    client.createDraftNode(state.value.selectedProject?.slug, props.dialogueName, tags, '')
         .then(() => {
             loadNodes();
             emit('nodeChanged', title);

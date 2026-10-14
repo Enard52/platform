@@ -172,8 +172,9 @@ public class DraftDialogueService {
 	 * @param name    the dialogue name.
 	 * @param content the full {@code .dlb} script content to populate the new draft from.
 	 * @return the newly created {@link DBDraftDialogue}.
-	 * @throws IllegalArgumentException if a node has no header separator or no {@code title}, so
-	 * the script can't be stored as draft nodes without losing content.
+	 * @throws IllegalArgumentException if a node has no header separator, a header that isn't a
+	 * valid set of tags ({@link DialogueBranchHeader#check}), or no {@code title}, so the script
+	 * can't be stored as draft nodes as it is.
 	 */
 	@Transactional
 	public DBDraftDialogue createDialogueFromScript(DBProject project, String name,
@@ -185,6 +186,11 @@ public class DraftDialogueService {
 				throw new IllegalArgumentException("Dialogue '" + name + "', line " +
 						rawNode.startLine() + ": node has no '" +
 						DialogueBranchConstants.DLB_HEADER_SEPARATOR + "' line.");
+			}
+			List<String> headerProblems = DialogueBranchHeader.check(rawNode.header());
+			if (!headerProblems.isEmpty()) {
+				throw new IllegalArgumentException("Dialogue '" + name + "', node at line " +
+						rawNode.startLine() + ", header " + headerProblems.get(0) + ".");
 			}
 			String title = DialogueBranchHeader.get(rawNode.header(), "title");
 			if (title == null || title.isEmpty()) {
