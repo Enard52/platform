@@ -430,6 +430,9 @@ public class DialogueController {
 	 * zone in which the user currently resided must be provided so that time sensitive information
 	 * may be processed correctly.</p>
 	 *
+	 * <p><b>Note: Resuming a dialogue re-executes the current node against the user's variable
+	 * store, meaning any {@code <<set>>} commands in that node's body will run again.</b></p>
+	 *
 	 * @param request the HTTPRequest object (to retrieve authentication headers and optional body
 	 *                parameters).
 	 * @param response the HTTP response (to add header WWW-Authenticate in case of a 401
@@ -450,7 +453,10 @@ public class DialogueController {
 			"ongoing dialogue with the given name (that is not finished or cancelled), this " +
 			"method will return the next step in that conversation. As with all methods that " +
 			"'start' dialogue executions, a valid time zone in which the user currently resided " +
-			"must be provided so that time sensitive information may be processed correctly.")
+			"must be provided so that time sensitive information may be processed correctly. " +
+			"<br/><br/><b>Note: Resuming a dialogue re-executes the current node against the " +
+			"user's variable store, meaning any &lt;&lt;set&gt;&gt; commands in that node's body " +
+			"will run again.</b>")
 	@RequestMapping(value="/continue", method=RequestMethod.POST)
 	public NullableResponse<DialogueMessage> continueDialogue(
 		HttpServletRequest request,
@@ -667,7 +673,9 @@ public class DialogueController {
 	 * <p><b>Caution: Using this method takes the dialogue back to the previous step as if there was
 	 * a regular reply option leading back to that step, but it will not undo any variable
 	 * operations (i.e. setting Dialogue Branch Variables) that may have occurred in the execution
-	 * of the current step. This may lead to unexpected results if the execution of the 'previous'
+	 * of the current step. Furthermore, taking a step back re-executes the target previous node
+	 * against the user's variable store, meaning any {@code <<set>>} commands in that node's body
+	 * will run again. This may lead to unexpected results if the execution of the 'previous'
 	 * dialogue step is affected by variables set in the 'current' step.</b></p>
 	 *
 	 * @param request the HTTPRequest object (to retrieve authentication headers and optional body
@@ -692,9 +700,11 @@ public class DialogueController {
 			"<br/><br/><b>Caution: Using this method takes the dialogue back to the previous " +
 			"step as if there was a regular reply option leading back to that step, but it will " +
 			"not undo any variable operations (i.e. setting Dialogue Branch Variables) that may " +
-			"have occurred in the execution of the current step. This may lead to unexpected " +
-			"results if the execution of the 'previous' dialogue step is affected by variables " +
-			"set in the 'current' step.</b>")
+			"have occurred in the execution of the current step. Furthermore, taking a step " +
+			"back re-executes the target previous node against the user's variable store, " +
+			"meaning any &lt;&lt;set&gt;&gt; commands in that node's body will run again. This " +
+			"may lead to unexpected results if the execution of the 'previous' dialogue step is " +
+			"affected by variables set in the 'current' step.</b>")
 	@RequestMapping(value="/back", method=RequestMethod.POST)
 	public DialogueMessage backDialogue(
 		HttpServletRequest request,
