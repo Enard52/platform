@@ -170,7 +170,7 @@ describe('DialogueTreeNode', () => {
 
     it('prompts confirmation when renaming dialogue with references and updates references when confirmed', async () => {
         authoring.findDialogueReferences.mockResolvedValue([
-            { dialogueName: 'other-dialogue', nodeTitle: 'Step1', snippet: '[[other-dialogue#Step1]]' },
+            { dialogueName: 'other-dialogue', nodeTitle: 'Step1', snippet: '[[Go on|folder/test-dialogue.Start]]' },
         ]);
         authoring.renameDraftDialogue.mockResolvedValue({});
 
