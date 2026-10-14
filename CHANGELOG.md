@@ -7,6 +7,8 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-14
+
 ### Changed
 
 - **Breaking:** Web service: the authoring end-points exchange a draft node's header as tags
