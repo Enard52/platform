@@ -261,6 +261,12 @@ When dialogues run on the Dialogue Branch Web Service, variables are **project-l
 
 As you can see, you don't have to define the `type` of the variable manually. Be careful when using more complex statements though. For example, when trying to add up numbers with Strings, Dialogue Branch will treat the result as a String.
 
+::: tip Tip: Idempotent vs. Non-idempotent Statements
+When using `<<set>>` in a node's body, keep in mind that resuming a dialogue (`/dialogue/continue`) or stepping back (`/dialogue/back`) in the Web Service re-executes the target node, including any statements in its body.
+
+Idempotent sets (such as `<<set $completed = true>>` or `<<set $name = "Bob">>`) safely write the same value again. However, non-idempotent sets (such as counters like `<<set $points = $points + 1>>`) will run again each time the node is re-executed. If you want an operation to execute only once when transitioning between nodes, attach the `<<set>>` statement to the [Reply option](#replies-with-setting-variables) (`[[Reply|Target|<<set $points = $points + 1>>]]`), which only executes when that reply is chosen.
+:::
+
 ### Control Statements: Conditionals
 
 Dialogue Branch supports if-then-else **Statements**. The simple example:
@@ -516,6 +522,10 @@ Do you prefer meat or fish?
 [[Meat please.|NodeMeat|<<set $likesMeat = true>>]]
 [[Fish for me.|NodeFish|<<set $likesFish = true>>]]
 ```
+
+::: tip
+Attaching `<<set>>` statements to replies is especially recommended for non-idempotent operations (such as incrementing counters: `<<set $points = $points + 1>>`). While statements placed in a node's body will re-execute whenever a node is resumed or stepped back to via `/dialogue/continue` or `/dialogue/back`, reply statements only execute when that reply is explicitly selected.
+:::
 
 ### Replies with Actions
 
