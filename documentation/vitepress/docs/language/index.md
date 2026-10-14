@@ -49,6 +49,7 @@ Below is an example of what this looks like in a .dlb file:
 ```text
 title: Start
 speaker: Robin
+comment: Asks how the user slept; the answer decides the branch.
 colorId: 3
 position: -416,112
 ```
