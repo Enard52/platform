@@ -29,6 +29,7 @@
 package com.dialoguebranch.execution.parser;
 
 import com.dialoguebranch.execution.parser.DialogueBranchScriptSplitter.RawNode;
+import com.dialoguebranch.execution.parser.DialogueBranchScriptSplitter.Script;
 import com.dialoguebranch.model.execute.Node;
 import org.junit.Test;
 
@@ -61,61 +62,61 @@ public class DialogueBranchScriptSplitterTest {
 
 	@Test
 	public void splitsLfScript() {
-		List<RawNode> nodes = DialogueBranchScriptSplitter.split(SCRIPT);
+		List<RawNode> nodes = DialogueBranchScriptSplitter.split(SCRIPT).nodes();
 		assertTwoNodes(nodes);
 		assertEquals(6, nodes.get(1).startLine());
 	}
 
 	@Test
 	public void splitsCrlfScript() {
-		assertTwoNodes(DialogueBranchScriptSplitter.split(SCRIPT.replace("\n", "\r\n")));
+		assertTwoNodes(DialogueBranchScriptSplitter.split(SCRIPT.replace("\n", "\r\n")).nodes());
 	}
 
 	@Test
 	public void splitsCrScript() {
-		assertTwoNodes(DialogueBranchScriptSplitter.split(SCRIPT.replace("\n", "\r")));
+		assertTwoNodes(DialogueBranchScriptSplitter.split(SCRIPT.replace("\n", "\r")).nodes());
 	}
 
 	@Test
 	public void splitsWithWhitespaceAroundSeparators() {
 		assertTwoNodes(DialogueBranchScriptSplitter.split(
-				SCRIPT.replace("===\n", "  ===\t\n").replace("---\n", "--- \n")));
+				SCRIPT.replace("===\n", "  ===\t\n").replace("---\n", "--- \n")).nodes());
 	}
 
 	@Test
 	public void splitsWithCommentsOnSeparators() {
 		assertTwoNodes(DialogueBranchScriptSplitter.split(
-				SCRIPT.replace("===\n", "=== // end of node\n").replace("---\n", "---// body\n")));
+				SCRIPT.replace("===\n", "=== // end of node\n").replace("---\n", "---// body\n")).nodes());
 	}
 
 	@Test
 	public void splitsWithoutFinalNewline() {
-		assertTwoNodes(DialogueBranchScriptSplitter.split(SCRIPT.substring(0, SCRIPT.length() - 1)));
+		assertTwoNodes(DialogueBranchScriptSplitter.split(SCRIPT.substring(0, SCRIPT.length() - 1)).nodes());
 	}
 
 	@Test
 	public void splitsWithoutFinalNodeSeparator() {
-		assertTwoNodes(DialogueBranchScriptSplitter.split(SCRIPT.substring(0, SCRIPT.length() - 4)));
+		assertTwoNodes(DialogueBranchScriptSplitter.split(SCRIPT.substring(0, SCRIPT.length() - 4)).nodes());
 	}
 
 	@Test
 	public void keepsSeparatorLikeTextThatIsNotASeparatorLine() {
 		String script = "title: Start\n---\n=== not a separator\na --- b\n====\n===\n";
-		List<RawNode> nodes = DialogueBranchScriptSplitter.split(script);
+		List<RawNode> nodes = DialogueBranchScriptSplitter.split(script).nodes();
 		assertEquals(1, nodes.size());
 		assertEquals("=== not a separator\na --- b\n====", nodes.get(0).body());
 	}
 
 	@Test
 	public void onlyTheFirstHeaderSeparatorSplitsHeaderFromBody() {
-		List<RawNode> nodes = DialogueBranchScriptSplitter.split("title: A\n---\none\n---\ntwo\n===\n");
+		List<RawNode> nodes = DialogueBranchScriptSplitter.split("title: A\n---\none\n---\ntwo\n===\n").nodes();
 		assertEquals("one\n---\ntwo", nodes.get(0).body());
 	}
 
 	@Test
 	public void removesBlankLinesFromHeaderButKeepsComments() {
 		String script = "\n\n  \ntitle: Start\n\n// a comment\nspeaker: Lizz\n \n---\nHello.\n";
-		List<RawNode> nodes = DialogueBranchScriptSplitter.split(script);
+		List<RawNode> nodes = DialogueBranchScriptSplitter.split(script).nodes();
 		assertEquals(1, nodes.size());
 		assertEquals("title: Start\n// a comment\nspeaker: Lizz", nodes.get(0).header());
 		assertEquals(4, nodes.get(0).startLine());
@@ -124,13 +125,13 @@ public class DialogueBranchScriptSplitterTest {
 	@Test
 	public void keepsBodyExactly() {
 		String body = "\n  Hello.  \n\n// not a comment in a body\n\n";
-		List<RawNode> nodes = DialogueBranchScriptSplitter.split("title: A\n---\n" + body + "\n===\n");
+		List<RawNode> nodes = DialogueBranchScriptSplitter.split("title: A\n---\n" + body + "\n===\n").nodes();
 		assertEquals(body, nodes.get(0).body());
 	}
 
 	@Test
 	public void emptyBodyIsPresentButEmpty() {
-		List<RawNode> nodes = DialogueBranchScriptSplitter.split("title: A\n---\n===\n");
+		List<RawNode> nodes = DialogueBranchScriptSplitter.split("title: A\n---\n===\n").nodes();
 		assertTrue(nodes.get(0).hasBody());
 		assertEquals("", nodes.get(0).body());
 	}
@@ -138,7 +139,7 @@ public class DialogueBranchScriptSplitterTest {
 	@Test
 	public void blockWithoutHeaderSeparatorHasNoBody() {
 		List<RawNode> nodes = DialogueBranchScriptSplitter.split(
-				"title: A\n---\nHi.\n===\ntitle: B\nHello.\n===\n");
+				"title: A\n---\nHi.\n===\ntitle: B\nHello.\n===\n").nodes();
 		assertEquals(2, nodes.size());
 		assertFalse(nodes.get(1).hasBody());
 		assertNull(nodes.get(1).body());
@@ -148,7 +149,7 @@ public class DialogueBranchScriptSplitterTest {
 	@Test
 	public void plainTextIsOneBlockWithoutBody() {
 		String text = "Shall I compare thee to a summer's day?\nThou art more lovely and more temperate:\n";
-		List<RawNode> nodes = DialogueBranchScriptSplitter.split(text);
+		List<RawNode> nodes = DialogueBranchScriptSplitter.split(text).nodes();
 		assertEquals(1, nodes.size());
 		assertEquals(text.trim(), nodes.get(0).header());
 		assertNull(nodes.get(0).body());
@@ -156,20 +157,20 @@ public class DialogueBranchScriptSplitterTest {
 
 	@Test
 	public void emptyAndBlankTextGiveNoNodes() {
-		assertTrue(DialogueBranchScriptSplitter.split(null).isEmpty());
-		assertTrue(DialogueBranchScriptSplitter.split("").isEmpty());
-		assertTrue(DialogueBranchScriptSplitter.split("\n \n\r\n===\n\n===").isEmpty());
+		assertTrue(DialogueBranchScriptSplitter.split(null).nodes().isEmpty());
+		assertTrue(DialogueBranchScriptSplitter.split("").nodes().isEmpty());
+		assertTrue(DialogueBranchScriptSplitter.split("\n \n\r\n===\n\n===").nodes().isEmpty());
 	}
 
 	@Test
 	public void dropsCommentOnlyBlockWithoutHeaderSeparator() {
-		List<RawNode> nodes = DialogueBranchScriptSplitter.split(SCRIPT + "\n// end of file\n");
+		List<RawNode> nodes = DialogueBranchScriptSplitter.split(SCRIPT + "\n// end of file\n").nodes();
 		assertTwoNodes(nodes);
 	}
 
 	@Test
 	public void keepsBlockWithHeaderSeparatorButNoHeader() {
-		List<RawNode> nodes = DialogueBranchScriptSplitter.split("\n---\nHello.\n===\n");
+		List<RawNode> nodes = DialogueBranchScriptSplitter.split("\n---\nHello.\n===\n").nodes();
 		assertEquals(1, nodes.size());
 		assertEquals("", nodes.get(0).header());
 		assertEquals("Hello.", nodes.get(0).body());
@@ -180,22 +181,69 @@ public class DialogueBranchScriptSplitterTest {
 	public void joinWritesTheStandardFormat() {
 		assertEquals(SCRIPT, DialogueBranchScriptSplitter.join(DialogueBranchScriptSplitter.split(SCRIPT)));
 		assertEquals("title: A\n===\n",
-				DialogueBranchScriptSplitter.join(List.of(new RawNode("title: A", null, 1))));
+				DialogueBranchScriptSplitter.join(new Script("", List.of(new RawNode("title: A", null, 1)))));
 	}
 
 	@Test
 	public void roundTrips() {
-		String messy = "\r\n// leading comment\r\ntitle: Start\r\n\r\n--- // body\r\n  Hello.\r\n\r\n=== \r\n"
-				+ "title: Second\r\n---\r\n\r\n===\r\ntitle: Loose\r\nno body here";
-		List<RawNode> split = DialogueBranchScriptSplitter.split(messy);
+		String messy = "\r\n// leading comment\r\n\r\n// second line\r\ntitle: Start\r\n\r\n--- // body\r\n"
+				+ "  Hello.\r\n\r\n=== \r\ntitle: Second\r\n---\r\n\r\n===\r\ntitle: Loose\r\nno body here";
+		Script split = DialogueBranchScriptSplitter.split(messy);
 		String joined = DialogueBranchScriptSplitter.join(split);
-		List<RawNode> resplit = DialogueBranchScriptSplitter.split(joined);
-		assertEquals(3, split.size());
-		for (int i = 0; i < split.size(); i++) {
-			assertEquals(split.get(i).header(), resplit.get(i).header());
-			assertEquals(split.get(i).body(), resplit.get(i).body());
+		Script resplit = DialogueBranchScriptSplitter.split(joined);
+		assertEquals("// leading comment\n// second line", split.preamble());
+		assertEquals(3, split.nodes().size());
+		assertEquals(split.preamble(), resplit.preamble());
+		for (int i = 0; i < split.nodes().size(); i++) {
+			assertEquals(split.nodes().get(i).header(), resplit.nodes().get(i).header());
+			assertEquals(split.nodes().get(i).body(), resplit.nodes().get(i).body());
 		}
 		assertEquals(joined, DialogueBranchScriptSplitter.join(resplit));
+	}
+
+	@Test
+	public void splitsPreambleFromTheFirstNode() {
+		String script = "\n// What this script is about.\n\n  // Indented, kept as it is.\n\n" + SCRIPT;
+		Script split = DialogueBranchScriptSplitter.split(script);
+		assertEquals("// What this script is about.\n  // Indented, kept as it is.", split.preamble());
+		assertEquals(2, split.nodes().size());
+		assertEquals("title: Start", split.nodes().get(0).header());
+		assertEquals(6, split.nodes().get(0).startLine());
+	}
+
+	@Test
+	public void scriptWithoutPreambleHasAnEmptyOne() {
+		assertEquals("", DialogueBranchScriptSplitter.split(SCRIPT).preamble());
+		assertEquals("", DialogueBranchScriptSplitter.split(null).preamble());
+		assertEquals("", DialogueBranchScriptSplitter.split("\n\n" + SCRIPT).preamble());
+	}
+
+	@Test
+	public void commentsAfterTheFirstHeaderLineAreNotPreamble() {
+		Script split = DialogueBranchScriptSplitter.split("title: Start\n// about this node\n---\nHi.\n===\n");
+		assertEquals("", split.preamble());
+		assertEquals("title: Start\n// about this node", split.nodes().get(0).header());
+	}
+
+	@Test
+	public void commentsBetweenNodesAndAtTheEndAreNotPreamble() {
+		Script split = DialogueBranchScriptSplitter.split(SCRIPT + "// between\n===\n" + SCRIPT + "// the end\n");
+		assertEquals("", split.preamble());
+		assertEquals(4, split.nodes().size());
+	}
+
+	@Test
+	public void scriptWithOnlyAPreambleHasNoNodes() {
+		Script split = DialogueBranchScriptSplitter.split("// Nothing here yet.\n\n// Coming soon.\n");
+		assertEquals("// Nothing here yet.\n// Coming soon.", split.preamble());
+		assertTrue(split.nodes().isEmpty());
+		assertEquals("// Nothing here yet.\n// Coming soon.\n", DialogueBranchScriptSplitter.join(split));
+	}
+
+	@Test
+	public void joinWritesThePreambleFirst() {
+		assertEquals("// About.\n" + SCRIPT, DialogueBranchScriptSplitter.join(
+				new Script("// About.", DialogueBranchScriptSplitter.split(SCRIPT).nodes())));
 	}
 
 	@Test
@@ -210,10 +258,12 @@ public class DialogueBranchScriptSplitterTest {
 				script.substring(0, script.length() - 1),
 				script + "// end of file\n",
 				"\n\n" + script.replace("===\ntitle", "===\n\n\ntitle"),
+				"// About this script.\n\n// Second line.\n" + script,
+				"\r\n  // About, with CRLF.\r\n" + script.replace("\n", "\r\n"),
 		};
 
 		for (String variant : variants) {
-			List<String> splitTitles = DialogueBranchScriptSplitter.split(variant).stream()
+			List<String> splitTitles = DialogueBranchScriptSplitter.split(variant).nodes().stream()
 					.map(node -> node.header().replaceAll("(?s).*title:\\s*(\\S+).*", "$1"))
 					.toList();
 			ParserResult result;
@@ -225,6 +275,8 @@ public class DialogueBranchScriptSplitterTest {
 			List<String> parsedTitles = result.getDialogue().getNodes().stream()
 					.map(Node::getTitle).toList();
 			assertEquals(variant, parsedTitles, splitTitles);
+			assertEquals(variant, DialogueBranchScriptSplitter.split(variant).preamble(),
+					result.getDialogue().getPreamble());
 		}
 	}
 }

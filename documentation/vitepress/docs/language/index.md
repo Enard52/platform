@@ -113,6 +113,23 @@ Please visit https:\//www.dialoguebranch.com for more information! // Comment go
 ...
 ```
 
+### Preamble
+
+Comment lines at the very start of a `.dlb` file, before the first Node, form the script's **preamble**: a comment block about the script as a whole, rather than about its first Node. It may only contain `//` comment lines and blank lines. The blank lines are ignored; the comment lines are kept exactly as written.
+
+```text
+// Greets a returning user and asks how they slept.
+// Used as the daily entry point.
+
+title: Start
+speaker: Robin
+---
+Good morning!
+...
+```
+
+The preamble is kept with the dialogue: the Web Service stores it alongside the dialogue's nodes, and it stays at the top of the script when the dialogue is published or exported. Comment lines anywhere else between Nodes are not part of the preamble.
+
 ## Dialogues
 
 A series of Dialogue Branch **Nodes** is called a Dialogue. The following rules apply to Dialogues:

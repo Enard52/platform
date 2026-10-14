@@ -259,6 +259,44 @@ class ProjectExportImportServiceTest {
 	}
 
 	@Test
+	void preambleSurvivesImportPublishExportAndImportAgain() throws Exception {
+		String xml = """
+				<?xml version="1.0" encoding="UTF-8"?>
+				<dlb-project name="Preamble" slug="import-preamble" version="1">
+				  <description>A script with a preamble.</description>
+				  <language-map>
+					<source-language name="English" code="en"/>
+				  </language-map>
+				</dlb-project>
+				""";
+		String preamble = "// What this dialogue is for.\n//   Kept exactly.";
+		String script = preamble.replace("\n", "\r\n\r\n") + "\r\ntitle: Start\r\nspeaker: Narrator\r\n---\r\nHi.\r\n===";
+		DBProject imported = projectImportService.importProject(zipMultipartFile(
+				buildZip(new String[] {"dlb-project.xml", xml}, new String[] {"en/main.dlb", script}),
+				"preamble.zip"));
+		assertEquals(preamble,
+				draftDialogueService.findDialogue(imported, "main").orElseThrow().getPreamble());
+
+		entityManager.flush();
+		entityManager.clear();
+		DBProject reloaded = projectService.findBySlug("import-preamble").orElseThrow();
+		DBPublishedDialogue published = reloaded.getLatestVersion().getPublishedDialogues()
+				.iterator().next();
+		assertTrue(published.getContent().startsWith(preamble + "\ntitle: Start"),
+				published.getContent());
+
+		byte[] archive = projectExportService.exportProject(reloaded);
+		String exported = new String(readZipEntries(archive).get("en/main.dlb"), StandardCharsets.UTF_8);
+		assertTrue(exported.startsWith(preamble + "\n"), exported);
+
+		projectService.deleteProject(reloaded);
+		DBProject reimported = projectImportService.importProject(
+				zipMultipartFile(archive, "preamble-again.zip"));
+		assertEquals(preamble,
+				draftDialogueService.findDialogue(reimported, "main").orElseThrow().getPreamble());
+	}
+
+	@Test
 	void importRejectsProjectMarkerFileWithoutSlugAttribute() {
 		String xmlWithoutSlug = """
 				<?xml version="1.0" encoding="UTF-8"?>

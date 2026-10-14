@@ -9,8 +9,16 @@ and this project adheres to a single monorepo-wide version declared in `global.j
 
 ### Added
 
+- Language: a script's **preamble**, the `//` comment lines at the very start of a `.dlb` file,
+  before the first node ([#345](https://github.com/dialoguebranch/platform/issues/345)). It
+  belongs to the dialogue rather than to its first node: core's `Dialogue` model and
+  `DialogueBranchScriptSplitter` expose it, and the Web Service stores it with the draft dialogue
+  (a new `draft_dialogues.preamble` column) and keeps it at the top of the script when
+  publishing, exporting and importing. Previously such comments ended up in the first node's
+  header in Studio's drafts, where moving that node in the editor deleted them.
+
 - Core: `DialogueBranchScriptSplitter`, which splits the text of a `.dlb` script into its raw
-  nodes (header and body text) and joins them back, by the same separator rules as
+  nodes (header and body text) and its preamble, and joins them back, by the same separator rules as
   `DialogueBranchParser` ([#342](https://github.com/dialoguebranch/platform/issues/342)). It
   accepts any text and never fails; deciding whether the result is a usable dialogue is left to
   the caller.

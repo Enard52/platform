@@ -47,6 +47,9 @@ import java.util.List;
  *
  * <ul>
  *   <li>LF, CRLF and a lone CR all end a line, as in {@link DialogueBranchParser}.</li>
+ *   <li>The comment-only and blank lines at the very start of the script, before anything else,
+ *   are its preamble: a comment block about the script as a whole. Its blank lines are ignored;
+ *   its comment lines are kept exactly.</li>
  *   <li>Every node separator line ({@code ===}) ends a block. Text after the last one, or text
  *   without any, is the final block.</li>
  *   <li>Within a block, the first header separator line ({@code ---}) separates header from body.
@@ -57,9 +60,10 @@ import java.util.List;
  *   comments included, and the body is kept exactly.</li>
  * </ul>
  *
- * <p>{@link #join} writes plain separator lines and LF line endings, so text on the separator
- * lines themselves (a comment, or whitespace) is not kept. Splitting joined nodes gives back the
- * same nodes, and joining split nodes again gives identical text.</p>
+ * <p>{@link #join} writes the preamble, then plain separator lines and LF line endings, so text on
+ * the separator lines themselves (a comment, or whitespace) is not kept. Splitting a joined
+ * script gives back the same preamble and nodes, and joining a split script again gives identical
+ * text.</p>
  *
  * @author Harm op den Akker
  */
@@ -93,18 +97,34 @@ public final class DialogueBranchScriptSplitter {
 	}
 
 	/**
-	 * Splits script text into its raw nodes, in their original order.
+	 * A script as plain text, split into its preamble and raw nodes.
+	 *
+	 * @param preamble the comment lines before the first node, joined with LF; empty if there are
+	 *                 none.
+	 * @param nodes    the raw nodes, in their original order.
+	 */
+	public record Script(String preamble, List<RawNode> nodes) {
+	}
+
+	/**
+	 * Splits script text into its preamble and raw nodes.
 	 *
 	 * @param script the script text; {@code null} is treated as empty.
-	 * @return the raw nodes, possibly empty.
+	 * @return the split script.
 	 */
-	public static List<RawNode> split(@Nullable String script) {
+	public static Script split(@Nullable String script) {
 		List<RawNode> nodes = new ArrayList<>();
-		if (script == null) return nodes;
+		if (script == null) return new Script("", nodes);
 		List<String> lines = splitLines(script);
+		List<String> preamble = new ArrayList<>();
+		int first = 0;
+		while (first < lines.size() && lineContent(lines.get(first)).isEmpty()) {
+			if (!lines.get(first).isBlank()) preamble.add(lines.get(first));
+			first++;
+		}
 		List<String> block = new ArrayList<>();
-		int blockStart = 1;
-		for (int i = 0; i < lines.size(); i++) {
+		int blockStart = first + 1;
+		for (int i = first; i < lines.size(); i++) {
 			String line = lines.get(i);
 			if (isNodeSeparator(line)) {
 				addBlock(nodes, block, blockStart);
@@ -115,20 +135,21 @@ public final class DialogueBranchScriptSplitter {
 			}
 		}
 		addBlock(nodes, block, blockStart);
-		return nodes;
+		return new Script(String.join("\n", preamble), nodes);
 	}
 
 	/**
-	 * Joins raw nodes into script text: each node's header, a header separator line and its body
-	 * (or only its header if it has no body), followed by a node separator line, all with LF line
-	 * endings.
+	 * Joins a script into text: its preamble (if any), then for each node its header, a header
+	 * separator line and its body (or only its header if it has no body), followed by a node
+	 * separator line, all with LF line endings.
 	 *
-	 * @param nodes the nodes to join.
+	 * @param parts the script to join.
 	 * @return the script text.
 	 */
-	public static String join(List<RawNode> nodes) {
+	public static String join(Script parts) {
 		StringBuilder script = new StringBuilder();
-		for (RawNode node : nodes) {
+		if (!parts.preamble().isEmpty()) script.append(parts.preamble()).append("\n");
+		for (RawNode node : parts.nodes()) {
 			script.append(node.header()).append("\n");
 			if (node.body() != null) {
 				script.append(DialogueBranchConstants.DLB_HEADER_SEPARATOR).append("\n");
@@ -159,6 +180,17 @@ public final class DialogueBranchScriptSplitter {
 	 */
 	public static boolean isHeaderSeparator(String line) {
 		return lineContent(line).equals(DialogueBranchConstants.DLB_HEADER_SEPARATOR);
+	}
+
+	/**
+	 * Returns whether a line is a comment line: a {@code //} comment with only whitespace before
+	 * it.
+	 *
+	 * @param line a single line, without its line ending.
+	 * @return {@code true} for a comment line.
+	 */
+	public static boolean isCommentLine(String line) {
+		return !line.isBlank() && lineContent(line).isEmpty();
 	}
 
 	/**

@@ -74,6 +74,7 @@ public class DialogueBranchParser implements AutoCloseable {
 
 	// Per-call scratch state: non-null only for the duration of a readDialogue() call.
 	private @Nullable Dialogue dialogue = null;
+	private @Nullable List<String> preambleLines = null;
 	private @Nullable List<NodeState.NodePointerToken> nodePointerTokens = null;
 
 	/**
@@ -162,6 +163,7 @@ public class DialogueBranchParser implements AutoCloseable {
 					"Invalid dialogue name: " + dialogueName));
 		}
 		nodePointerTokens = new ArrayList<>();
+		preambleLines = new ArrayList<>();
 		boolean foundNodeError = false;
 		ReadNodeResult readResult;
 		while ((readResult = readNode()) != null) {
@@ -174,6 +176,7 @@ public class DialogueBranchParser implements AutoCloseable {
 					moveToNextNode();
 			}
 		}
+		preambleLines = flushPreamble();
 		if (!foundNodeError) {
 			if (!dialogue.nodeExists("Start")) {
 				result.getParseErrors().add(new LineNumberParseException(
@@ -200,7 +203,20 @@ public class DialogueBranchParser implements AutoCloseable {
 		// is not safe to execute or publish; callers must keep checking that.
 		this.dialogue = null;
 		nodePointerTokens = null;
+		preambleLines = null;
 		return result;
+	}
+
+	/**
+	 * Stores the preamble lines collected so far on the dialogue being read, if they haven't been
+	 * stored yet, and returns {@code null} so the caller can mark the preamble as done.
+	 *
+	 * @return {@code null}
+	 */
+	private @Nullable List<String> flushPreamble() {
+		if (preambleLines != null)
+			Objects.requireNonNull(dialogue).setPreamble(String.join("\n", preambleLines));
+		return null;
 	}
 
 	private static class ReadNodeResult {
@@ -231,12 +247,21 @@ public class DialogueBranchParser implements AutoCloseable {
 			String line = readLine();
 			while (line != null && inHeader) {
 				if (DialogueBranchScriptSplitter.isNodeSeparator(line)) {
+					preambleLines = flushPreamble();
 					result.readNodeEnd = true;
 					throw new LineNumberParseException(
 							"End of header not found", lineNum, 1);
 				} else if (DialogueBranchScriptSplitter.isHeaderSeparator(line)) {
+					preambleLines = flushPreamble();
 					inHeader = false;
+				} else if (preambleLines != null && (line.isBlank() ||
+						DialogueBranchScriptSplitter.isCommentLine(line))) {
+					// Still at the very start of the script: the preamble, kept on the dialogue.
+					if (!line.isBlank()) preambleLines.add(line);
+					lineNum = reader.getLineNum();
+					line = readLine();
 				} else {
+					preambleLines = flushPreamble();
 					parseHeaderLine(headerMap, line, lineNum, nodeState);
 					lineNum = reader.getLineNum();
 					line = readLine();
